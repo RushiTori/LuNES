@@ -27,32 +27,6 @@ void TXS(CPU* cpu, u16 input);
 void TYA(CPU* cpu, u16 input);
 void TSX(CPU* cpu, u16 input);
 
-// conditional branches
-void BPL(CPU* cpu, u16 input);
-void BMI(CPU* cpu, u16 input);
-void BVC(CPU* cpu, u16 input);
-void BVS(CPU* cpu, u16 input);
-void BCC(CPU* cpu, u16 input);
-void BCS(CPU* cpu, u16 input);
-void BNE(CPU* cpu, u16 input);
-void BEQ(CPU* cpu, u16 input);
-
-// compare
-void BIT(CPU* cpu, u16 input);
-void CMP(CPU* cpu, u16 input);
-void CPX(CPU* cpu, u16 input);
-void CPY(CPU* cpu, u16 input);
-
-// jumps
-void JSR(CPU* cpu, u16 input);
-void JMP(CPU* cpu, u16 input);
-void RTS(CPU* cpu, u16 input);
-void RTI(CPU* cpu, u16 input);
-
-// weird land
-void BRK(CPU* cpu, u16 input);
-void NOP(CPU* cpu, u16 input);
-
 // store
 void STA(CPU* cpu, u16 input);
 void STY(CPU* cpu, u16 input);
@@ -80,15 +54,45 @@ void AND(CPU* cpu, u16 input);
 void EOR(CPU* cpu, u16 input);
 void ORA(CPU* cpu, u16 input);
 void LSR(CPU* cpu, u16 input);
+void LSRa(CPU* cpu, u16 input);
 void ASL(CPU* cpu, u16 input);
+void ASLa(CPU* cpu, u16 input);
 void ROL(CPU* cpu, u16 input);
+void ROLa(CPU* cpu, u16 input);
 void ROR(CPU* cpu, u16 input);
+void RORa(CPU* cpu, u16 input);
 
 // stack
 void PHP(CPU* cpu, u16 input);
 void PLP(CPU* cpu, u16 input);
 void PHA(CPU* cpu, u16 input);
 void PLA(CPU* cpu, u16 input);
+
+// compare
+void BIT(CPU* cpu, u16 input);
+void CMP(CPU* cpu, u16 input);
+void CPX(CPU* cpu, u16 input);
+void CPY(CPU* cpu, u16 input);
+
+// conditional branches
+void BPL(CPU* cpu, u16 input);
+void BMI(CPU* cpu, u16 input);
+void BVC(CPU* cpu, u16 input);
+void BVS(CPU* cpu, u16 input);
+void BCC(CPU* cpu, u16 input);
+void BCS(CPU* cpu, u16 input);
+void BNE(CPU* cpu, u16 input);
+void BEQ(CPU* cpu, u16 input);
+
+// jumps
+void JSR(CPU* cpu, u16 input);
+void JMP(CPU* cpu, u16 input);
+void RTS(CPU* cpu, u16 input);
+void RTI(CPU* cpu, u16 input);
+
+// weird land
+void BRK(CPU* cpu, u16 input);
+void NOP(CPU* cpu, u16 input);
 
 // Illegal Land
 void JAM(CPU* cpu, u16 input);
