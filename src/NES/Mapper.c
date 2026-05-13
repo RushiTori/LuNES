@@ -40,6 +40,10 @@ void NROMWriteMem(Cartridge* cart, u16 address, u8 value) {
 
 //-------------------------------------- Mapper 1: MAPPER_MMC1  --------------------------------------------
 
+u8 MMC1ReadMem(Cartridge* cart, u16 address) {}
+
+void MMC1WriteMem(Cartridge* cart, u16 address, u8 value) {}
+
 //-------------------------------------- Mapper 2: MAPPER_UXROM  -------------------------------------------
 
 #define MAPPER_UXROM_SUBMAPPER_UNSPECIFIED 0
@@ -72,3 +76,5 @@ u8 UXROMReadMem(Cartridge* cart, u16 address) {
 void UXROMWriteMem(Cartridge* cart, u16 address, u8 value) {
 	if (address >= MAPPER_UXROM_PRG_BANK_REG_START) cart->PRGBank = UNROMTruncateReg(cart, value);
 }
+
+//-------------------------------------- Mapper 3: MAPPER_UXROM  -------------------------------------------
