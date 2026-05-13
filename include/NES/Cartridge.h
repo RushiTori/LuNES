@@ -20,6 +20,13 @@ typedef enum MapperID {
 	MAPPER_COUNT
 } MapperID;
 
+typedef enum ScrollingMode {
+	SCROLLING_VERTICAL = 0,
+	SCROLLING_HORIZONTAL,
+	SCROLLING_FOUR_SCREENS,
+	// TODO: add more scrolling modes
+} ScrollingMode;
+
 typedef enum ConsoleID {
 	CONSOLE_NES_FAMICOM = 0,
 	CONSOLE_VS_SYSTEM,
@@ -37,11 +44,16 @@ typedef enum TimingMode {
 typedef struct Header {
 	u16 prgRomPages;
 	u8 chrRomPages;
+
 	bool hasPRGRam;
 	u8 prgRamShifts;
 	u8 prgNVRamShifts;
+
 	u8 chrRamShifts;
 	u8 chrNVRamShifts;
+
+	ScrollingMode scrollMode;
+
 	bool has512BytesPadding;
 	bool usesAlternativeNametables;
 

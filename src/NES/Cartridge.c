@@ -36,9 +36,14 @@ static void CartridgeParseNES20Header(Cartridge* cart, u8* bytes) {
 	cart->header.prgRomPages = MakeWord(bytes[NES20_HEADER_HIGH_PRG_ROM], bytes[HEADER_PRG_ROM_PAGES]);
 	cart->header.chrRomPages = bytes[HEADER_CHR_ROM_PAGES];
 
+	cart->header.scrollMode = GetFlag(bytes[6], 0) ? SCROLLING_VERTICAL : SCROLLING_HORIZONTAL;
+
 	cart->header.has512BytesPadding = GetFlag(bytes[HEADER_FLAG6], FLAG6_TRAINER);
 
 	cart->header.hasPRGRam = GetFlag(bytes[HEADER_FLAG6], FLAG6_PRG_RAM);
+
+	cart->header.consoleID = bytes[HEADER_FLAG7] & 0b11;
+	// TODO: do the rest of FLAG7 bytes
 
 	cart->header.prgRamShifts = GetLowNybble(bytes[NES20_HEADER_PRG_RAM_SIZE]);
 	cart->header.prgNVRamShifts = GetHighNybble(bytes[NES20_HEADER_PRG_RAM_SIZE]);
@@ -51,6 +56,8 @@ static void CartridgeParseNES20Header(Cartridge* cart, u8* bytes) {
 	cart->header.mapperID =
 		MakeWord(GetLowNybble(bytes[HEADER_FLAG8]), MakeByte(GetHighNybble(bytes[HEADER_FLAG7]), GetHighNybble(bytes[HEADER_FLAG6])));
 	cart->header.submapperID = GetHighNybble(bytes[HEADER_FLAG8]);
+
+	// cart->
 }
 
 Cartridge* CartridgeCreate(u8* bytes, size_t bytesSize) {
