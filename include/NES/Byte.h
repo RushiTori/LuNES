@@ -19,6 +19,8 @@ typedef int16_t s16;
 #define ClearBit(field, index) ((field) & ~(1 << (index)))
 #define FlipBit(field, index) ((field) ^ (1 << (index)))
 
+#define GetBits(field, index, len) (((field) & (((1 << (len)) - 1) << (index))) >> (index))
+
 #define GetHighNybble(byte_) (((byte_) >> 4) & 0x0F)
 #define GetLowNybble(byte_) ((byte_) & 0x0F)
 
