@@ -2,6 +2,22 @@
 
 #include "CPU.h"
 
+bool InstCallShouldGetArgValue(InstCall call) {
+	if (call == ADC) return true;
+	if (call == SBC) return true;
+	if (call == LDA) return true;
+	if (call == LDX) return true;
+	if (call == LDY) return true;
+	if (call == BIT) return true;
+	if (call == CMP) return true;
+	if (call == CPX) return true;
+	if (call == CPY) return true;
+	if (call == AND) return true;
+	if (call == EOR) return true;
+	if (call == ORA) return true;
+	return false;
+}
+
 static void CPUUpdateNZ(CPU* cpu, u8 value) {
 	ClearBit(cpu->flags, CPU_FLAG_N);
 	ClearBit(cpu->flags, CPU_FLAG_Z);

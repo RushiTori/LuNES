@@ -7,6 +7,8 @@ typedef struct CPU CPU;
 
 typedef void (*InstCall)(CPU*, u16);
 
+bool InstCallShouldGetArgValue(InstCall call);
+
 // clear flags
 void CLC(CPU* cpu, u16 input);
 void CLI(CPU* cpu, u16 input);
