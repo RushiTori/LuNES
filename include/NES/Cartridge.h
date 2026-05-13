@@ -33,8 +33,12 @@ typedef enum TimingMode {
 
 typedef struct Header {
 	u16 prgRomPages;
-	u16 chrRomPages;
-	bool hasBattery;
+	u8 chrRomPages;
+	bool hasPRGRam;
+	u8 prgRamShifts;
+	u8 prgNVRamShifts;
+	u8 chrRamShifts;
+	u8 chrNVRamShifts;
 	bool has512BytesPadding;
 	bool usesAlternativeNametables;
 
@@ -48,7 +52,7 @@ typedef struct Header {
 
 	TimingMode expectedTimingMode;
 	u8 miscRomsCount;
-	u8 expDevice;
+	u8 expDevice;  // expected controller
 } Header;
 
 typedef struct Cartridge {
