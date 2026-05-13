@@ -56,6 +56,8 @@ typedef struct Cartridge {
 
 	u8* PRGRam;
 	u8* CHRRam;
+
+	u8 PRGBank;	 // starts at 0, only usable on mappers that use bank switching
 } Cartridge;
 
 #endif	// LU_NES_CARTRIDGE_H
