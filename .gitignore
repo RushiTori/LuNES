@@ -1,0 +1,5 @@
+/.clang-format
+/.vscode
+/objs
+*.exe
+*.x86_64
