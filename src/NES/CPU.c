@@ -10,7 +10,10 @@ u16 GetInterruptVector(InterruptID interrupt) {
 	}
 }
 
-void CPUInit(CPU* cpu) { *cpu = (CPU){0}; }
+void CPUInit(CPU* cpu) {
+	*cpu = (CPU){0};
+	CPUInterrupt(cpu, CPU_INT_RESET, true);
+}
 
 static u16 CPUFetch(CPU* cpu, u8 len) {
 	u16 value;
