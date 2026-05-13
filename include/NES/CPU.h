@@ -2,6 +2,7 @@
 #define LU_NES_CPU_H
 
 #include "CPUMemory.h"
+#include "Operations.h"
 
 #define CPU_FLAG_C 0
 #define CPU_FLAG_Z 1

@@ -1,7 +1,9 @@
 #ifndef LU_NES_ADDRESSING_MODES_H
 #define LU_NES_ADDRESSING_MODES_H
 
-#include "CPU.h"
+#include "Byte.h"
+
+typedef struct CPU CPU;
 
 typedef enum AddressingMode {
 	ADDRESSING_IMPLIED,		 // impl

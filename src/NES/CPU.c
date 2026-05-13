@@ -12,8 +12,35 @@ u16 GetInterruptVector(InterruptID interrupt) {
 
 void CPUInit(CPU* cpu) { *cpu = (CPU){0}; }
 
+static u16 CPUFetch(CPU* cpu, u8 len) {
+	u16 value;
+	if (len == 1) value = CPUMemRead(cpu->memory, cpu->pc);
+	if (len == 2) value = CPUMemRead16(cpu->memory, cpu->pc);
+	cpu->pc += len;
+	return value;
+}
+
 uint64_t CPUStep(CPU* cpu) {
-	// WIP: implement the step functions
+	u8 opcode = CPUFetch(cpu, 1);
+
+	InstCall call = OperationsGetCall(opcode);
+
+	AddressingMode addrMode = OperationsGetAddressingMode(opcode);
+	u16 input = CPUFetch(cpu, AddressingModeGetInputSize(addrMode));
+
+	bool hasPenalty = OperationsHasPageCrossPenalty(opcode);
+	if (InstCallShouldGetArgValue(call)) {
+		input = AddressingModeGetValue(addrMode, cpu, input, hasPenalty);
+	} else {
+		input = AddressingModeGetAddress(addrMode, cpu, input, hasPenalty);
+	}
+
+	call(cpu, input);
+
+	uint64_t addedCycles = OperationsGetClocks(opcode) + cpu->extraCycles;
+	cpu->cycles += addedCycles;
+	cpu->extraCycles = 0;
+	return addedCycles;
 }
 
 static void CPUStackPush(CPU* cpu, u8 value) {

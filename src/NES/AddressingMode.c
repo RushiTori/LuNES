@@ -1,5 +1,7 @@
 #include "AddressingMode.h"
 
+#include "CPU.h"
+
 u8 AddressingModeGetInputSize(AddressingMode mode) {
 	switch (mode) {
 		case ADDRESSING_IMPLIED: return 0;
@@ -43,7 +45,7 @@ u16 AddressingModeGetAddress(AddressingMode mode, CPU* cpu, u16 addr, bool hasPe
 		case ADDRESSING_ABSOLUTE:
 		case ADDRESSING_ZERO_PAGE: result = addr; break;
 
-		case ADDRESSING_INDIRECT: result = CPUMemRead16(cpu->memory, addr); break;
+		case ADDRESSING_INDIRECT: result = CPUMemReadPage16(cpu->memory, GetHighByte(addr), GetLowByte(addr)); break;
 
 		case ADDRESSING_ZERO_PAGE_X: result = GetLowByte(addr + cpu->x); break;
 
