@@ -31,4 +31,6 @@ typedef int16_t s16;
 #define GetLowByte(word) ((word) & 0xFF)
 #define MakeWord(high, low) ((((high) & 0xFF) << 8) | ((low) & 0xFF))
 
+u8 AssignBit(u8 field, u8 index, bool isSet);
+
 #endif	// LU_NES_BYTE_H
