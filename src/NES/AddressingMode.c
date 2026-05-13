@@ -1,5 +1,7 @@
 #include "AddressingMode.h"
 
+#include "CPU.h"
+
 u8 AddressingModeGetInputSize(AddressingMode mode) {
 	switch (mode) {
 		case ADDRESSING_IMPLIED: return 0;
