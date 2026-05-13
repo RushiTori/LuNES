@@ -44,6 +44,7 @@ typedef enum TimingMode {
 typedef struct Header {
 	u16 prgRomPages;
 	u8 chrRomPages;
+	u8 miscRomPages;
 
 	bool hasPRGRam;
 	u8 prgRamShifts;
@@ -66,7 +67,6 @@ typedef struct Header {
 	u16 chrRamSize;
 
 	TimingMode expectedTimingMode;
-	u8 miscRomsCount;
 	u8 expDevice;  // expected controller
 } Header;
 
@@ -78,6 +78,11 @@ typedef struct Cartridge {
 
 	u8* PRGRam;
 	u8* CHRRam;
+
+	u8* PRGNVRam;
+	u8* CHRNVRam;
+
+	u8* MiscRom;
 
 	u8 PRGBank;	 // starts at 0, only usable on mappers that use bank switching
 } Cartridge;
