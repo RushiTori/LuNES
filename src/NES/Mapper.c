@@ -20,10 +20,8 @@
 
 u8 NROMReadMem(Cartridge* cart, u16 address) {
 	if (address >= MAPPER_NROM_PRG_RAM_START && address <= MAPPER_NROM_PRG_RAM_END)
-		return (cart->header.hasBattery)
-				   ? cart->PRGRam[address - MAPPER_NROM_PRG_RAM_START]
-				   : 0;	 // used by family basic v3.0
-						 // family basic and playbox basic not fully supported (mirroring on high part of PRG RAM not emulated)
+		return (cart->header.hasPRGRam) ? cart->PRGRam[address - MAPPER_NROM_PRG_RAM_START]
+										: 0;  // TODO: implement mirroring since now, we do know the size of PRG RAM through the header
 	else if (address < MAPPER_NROM_PRG_ROM_START + cart->header.prgRomPages * PRG_ROM_PAGE_SIZE)
 		return cart->PRGRom[address - MAPPER_NROM_PRG_ROM_START];
 	else if (IsAddrInPrgROMMirror(address, cart->header.prgRomPages))
