@@ -6,9 +6,6 @@
 
 #define CARTRIDGE_BASE_ADDRESS 0x4020
 
-#define PRG_ROM_PAGE_SIZE 16384
-#define CHR_ROM_PAGE_SIZE 8192
-
 typedef u8 (*MapperReadCb)(Mapper* mapper, u16 address);
 typedef void (*MapperWriteCb)(Mapper* mapper, u16 address, u8 value);
 

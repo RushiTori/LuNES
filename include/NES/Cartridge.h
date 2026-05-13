@@ -3,6 +3,9 @@
 
 #include "Byte.h"
 
+#define PRG_ROM_PAGE_SIZE 16384
+#define CHR_ROM_PAGE_SIZE 8192
+
 typedef enum MapperID {
 	MAPPER_NROM = 0,
 	MAPPER_MMC1,
@@ -59,5 +62,8 @@ typedef struct Cartridge {
 
 	u8 PRGBank;	 // starts at 0, only usable on mappers that use bank switching
 } Cartridge;
+
+Cartridge* CartridgeCreate(u8* bytes);
+void CartridgeDestroy(Cartridge* cart);
 
 #endif	// LU_NES_CARTRIDGE_H
