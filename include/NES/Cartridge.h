@@ -1,6 +1,9 @@
 #ifndef LU_NES_CARTRIDGE_H
 #define LU_NES_CARTRIDGE_H
 
+#include <stdlib.h>
+#include <string.h>
+
 #include "Byte.h"
 
 #define PRG_ROM_PAGE_SIZE 16384
@@ -67,7 +70,7 @@ typedef struct Cartridge {
 	u8 PRGBank;	 // starts at 0, only usable on mappers that use bank switching
 } Cartridge;
 
-Cartridge* CartridgeCreate(u8* bytes);
+Cartridge* CartridgeCreate(u8* bytes, size_t bytesSize);
 void CartridgeDestroy(Cartridge* cart);
 
 #endif	// LU_NES_CARTRIDGE_H

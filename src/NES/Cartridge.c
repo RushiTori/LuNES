@@ -1,8 +1,6 @@
 #include "Cartridge.h"
 
-#include <string.h>
-
-#include "Byte.h"
+#define INES_HEADER_SIZE 16
 
 #define HEADER_PRG_ROM_PAGES 4
 #define HEADER_CHR_ROM_PAGES 5
@@ -33,7 +31,8 @@ typedef enum HeaderFormat {
 	HEADER_UNKNOWN,
 } HeaderFormat;
 
-static parseNES20Header(Cartridge* cart, u8* bytes) {
+// TODO: rename to CartridgeParseNES20Header
+static void CartridgeParseNES20Header(Cartridge* cart, u8* bytes) {
 	cart->header.prgRomPages = MakeWord(bytes[NES20_HEADER_HIGH_PRG_ROM], bytes[HEADER_PRG_ROM_PAGES]);
 	cart->header.chrRomPages = bytes[HEADER_CHR_ROM_PAGES];
 
@@ -47,7 +46,7 @@ static parseNES20Header(Cartridge* cart, u8* bytes) {
 	cart->header.chrRamShifts = GetLowNybble(bytes[NES20_HEADER_VRAM_SIZE]);
 	cart->header.chrNVRamShifts = GetHighNybble(bytes[NES20_HEADER_VRAM_SIZE]);
 
-	cart->header.expectedTimingMode = bytes[NES20_HEADER_TV_SYSTEM] & 0x3;
+	cart->header.expectedTimingMode = bytes[NES20_HEADER_TV_SYSTEM] & 0b11;
 
 	cart->header.mapperID =
 		MakeWord(GetLowNybble(bytes[HEADER_FLAG8]), MakeByte(GetHighNybble(bytes[HEADER_FLAG7]), GetHighNybble(bytes[HEADER_FLAG6])));
@@ -55,8 +54,11 @@ static parseNES20Header(Cartridge* cart, u8* bytes) {
 }
 
 Cartridge* CartridgeCreate(u8* bytes, size_t bytesSize) {
-	const char* INES_HEADER = {'N', 'E', 'S', 0x1A};
-	if (*(uint32_t*)bytes != *(uint32_t*)INES_HEADER) return NULL;	// header is invalid, we can't process the rom
+	const char* INES_HEADER = "NES\x1A";
+
+	// header is invalid, we can't process the rom
+	if (bytesSize < INES_HEADER_SIZE) return NULL;
+	if (strncmp(bytes, INES_HEADER, strlen(INES_HEADER))) return NULL;
 
 	uint32_t estimateRomSize = 16 + (bytes[NES20_HEADER_HIGH_PRG_ROM] << 8 | bytes[HEADER_PRG_ROM_PAGES]) * PRG_ROM_PAGE_SIZE +
 									   bytes[HEADER_CHR_ROM_PAGES] * CHR_ROM_PAGE_SIZE + GetFlag(bytes[HEADER_FLAG6], FLAG6_TRAINER)
@@ -64,16 +66,17 @@ Cartridge* CartridgeCreate(u8* bytes, size_t bytesSize) {
 								   : 0;
 
 	HeaderFormat fmt = HEADER_UNKNOWN;
-	if (bytes[HEADER_FLAG7] & bytes[0x0C] == 0x08 && (estimateRomSize == bytesSize || bytes[NES20_HEADER_MISC_ROMS] != 0))
-		fmt = HEADER_NES20;
-	else if (bytes[HEADER_FLAG7] & bytes[0x0C] == 0x04)
-		fmt = HEADER_ARCHAIC_INES;
-	else if (bytes[HEADER_FLAG7] & bytes[0x0C] == 0x00 && bytes[12] == bytes[13] == bytes[14] == bytes[15])
-		fmt = HEADER_INES;
-	else
-		fmt = HEADER_UNKNOWN;
-
 	Cartridge* cart = malloc(sizeof(Cartridge));
+	if (bytes[HEADER_FLAG7] & bytes[0x0C] == 0x08 && (estimateRomSize == bytesSize || bytes[NES20_HEADER_MISC_ROMS] != 0)) {
+		fmt = HEADER_NES20;
+		CartridgeParseNES20Header(cart, bytes);
+	} else if (bytes[HEADER_FLAG7] & bytes[0x0C] == 0x04) {
+		fmt = HEADER_ARCHAIC_INES;
+	} else if (bytes[HEADER_FLAG7] & bytes[0x0C] == 0x00 && bytes[12] == bytes[13] == bytes[14] == bytes[15]) {
+		fmt = HEADER_INES;
+	} else {
+		fmt = HEADER_UNKNOWN;
+	}
 }
 
 void CartridgeDestroy(Cartridge* cart) {}
