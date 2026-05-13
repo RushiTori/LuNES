@@ -209,7 +209,11 @@ void RTI(CPU* cpu, u16 input) {
 }
 
 // weird land
-void BRK(CPU* cpu, u16 input) { CPUInterrupt(cpu, CPU_INT_BRK, true); }
+void BRK(CPU* cpu, u16 input) {
+	cpu->pc++;
+	CPUInterrupt(cpu, CPU_INT_BRK, true);
+}
+
 void NOP(CPU* cpu, u16 input) {}
 
 // Illegal Land
