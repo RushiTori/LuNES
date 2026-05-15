@@ -7,6 +7,8 @@
 #define IsAddressInRange(addr, first, last) (((addr) >= (first)) && ((addr) <= (last)))
 #define GetMirroredAddress(addr, first, range, start) ((start) + (((addr) - (first)) % (range)))
 
+// BIGGGG TODO: actually have some sort of way of handling PRG-NVRAM, not sure of how to do that, gotta read more docs
+
 //-------------------------------------- Mapper 0: MAPPER_NROM  ---------------------------------------------
 
 #define MAPPER_NROM_PRG_RAM_START 0x6000
@@ -14,15 +16,14 @@
 #define MAPPER_NROM_PRG_ROM_START 0x8000
 #define MAPPER_NROM_PRG_ROM_END 0xFFFF
 
-#define IsAddrInPrgROMMirror(addr, PRGPages) \
-	IsAddressInRange((addr), MAPPER_NROM_PRG_ROM_START + PRGPages * PRG_ROM_PAGE_SIZE, MAPPER_NROM_PRG_ROM_END)
-#define GetPrgROMMirrorAddr(addr, PRGPages)                                                                         \
-	GetMirroredAddress((addr), MAPPER_NROM_PRG_ROM_START, MAPPER_NROM_PRG_ROM_START + PRGPages * PRG_ROM_PAGE_SIZE, \
-					   MAPPER_NROM_PRG_ROM_START + PRGPages * PRG_ROM_PAGE_SIZE)
+#define IsAddrInPrgROMMirror(addr, PRGSize) IsAddressInRange((addr), MAPPER_NROM_PRG_ROM_START + PRGSize, MAPPER_NROM_PRG_ROM_END)
+#define GetPrgROMMirrorAddr(addr, PRGSize) \
+	GetMirroredAddress((addr), MAPPER_NROM_PRG_ROM_START, MAPPER_NROM_PRG_ROM_START + PRGSize, MAPPER_NROM_PRG_ROM_START + PRGSize)
 
 // NROM doesn't need init
 
-// TODO: fix reading so that it doesn't rely on a cartridge's PRG-ROM that's at least 16KB in size
+// TODO: test this actually, i wanna check if mirroring is handled correctly
+//  when the emulator'll be actually rolled out, i'll probably try galaxian to check if the 8KB of rom breaks anything
 u8 NROM_ReadMemCPU(Cartridge* cart, u16 address) {
 	// doesn't use mapper since mapper is literally empty
 	if (address >= MAPPER_NROM_PRG_RAM_START && address <= MAPPER_NROM_PRG_RAM_END) {
@@ -34,10 +35,10 @@ u8 NROM_ReadMemCPU(Cartridge* cart, u16 address) {
 			// mirroring
 			return NROM_ReadMem(cart, MAPPER_NROM_PRG_RAM_END + (address - MAPPER_NROM_PRG_RAM_END) % prgRamSize);
 		}
-	} else if (address < MAPPER_NROM_PRG_ROM_START + cart->header.prgRomPages * PRG_ROM_PAGE_SIZE) {
+	} else if (address < MAPPER_NROM_PRG_ROM_START + cart->header.prgRomSize) {
 		return cart->PRGRom[address - MAPPER_NROM_PRG_ROM_START];
-	} else if (IsAddrInPrgROMMirror(address, cart->header.prgRomPages)) {
-		return NROMReadMem(cart, GetPrgROMMirrorAddr(address, cart->header.prgRomPages));
+	} else if (IsAddrInPrgROMMirror(address, cart->header.prgRomSize)) {
+		return NROMReadMem(cart, GetPrgROMMirrorAddr(address, cart->header.prgRomSize));
 	}
 	// should never happen
 	return 0;
@@ -79,6 +80,8 @@ void NROM_WriteMemPPU(Cartridge* cart, u16 address, u8 value) {
 
 //-------------------------------------- Mapper 1: MAPPER_MMC1  --------------------------------------------
 
+#define MAPPER_MMC1_PRG_RAM_START 0x6000
+#define MAPPER_MMC1_PRG_RAM_END 0x7FFF
 #define MAPPER_MMC1_PRG_ROM_START 0x8000
 #define MAPPER_MMC1_PRG_ROM_MID 0xC000
 #define MAPPER_MMC1_PRG_ROM_END 0xFFFF
@@ -134,39 +137,58 @@ void MMC1_Init(Cartridge* cart) {
 	cart->mapper.mmc1.prgBankReg = 0;
 }
 
-// todo: add PRG RAM support
+// TODO: need to test this, Zelda 1 would prolly be fine
 u8 MMC1_ReadMemCPU(Cartridge* cart, u16 address) {
-	switch (GetBits(cart->mapper.mmc1.controlReg, MMC1_CONTROL_PRGBANK_ORIG, MMC1_CONTROL_PRGBANK_SIZE)) {
-		case MMC1_CONTROL_PRGBANK_ONEBANK:
-		case MMC1_CONTROL_PRGBANK_ONEBANK_AGAIN: {
-			// get nth doublebank
-			return cart->PRGRom[address - MAPPER_MMC1_PRG_ROM_START + (cart->mapper.mmc1.prgBankReg >> 1) * MMC1_ONEBANK_OFFSET];
+	if (address >= MAPPER_MMC1_PRG_RAM_START && address <= MAPPER_MMC1_PRG_RAM_END) {
+		u16 prgRamSize = 64 << cart->header.prgRamShifts + 64 << cart->header.prgNVRamShifts;
+		// ram access
+		if (address - MAPPER_NROM_PRG_RAM_START < prgRamSize) {
+			return (cart->header.hasPRGRam) ? cart->PRGRam[address] : 0;
+		} else {
+			// mirroring
+			return MMC1_ReadMem(cart, MAPPER_NROM_PRG_RAM_END + (address - MAPPER_NROM_PRG_RAM_END) % prgRamSize);
 		}
-
-		case MMC1_CONTROL_PRGBANK_FIX_FIRST: {
-			if (address - MAPPER_MMC1_PRG_ROM_START < MMC1_FIXED_OFFSET) {
-				// get first bank
-				return cart->PRGRom[address - MAPPER_MMC1_PRG_ROM_START];
+	} else if (address >= MAPPER_MMC1_SERIAL_REGISTER_START && address <= MAPPER_MMC1_SERIAL_REGISTER_END) {
+		switch (GetBits(cart->mapper.mmc1.controlReg, MMC1_CONTROL_PRGBANK_ORIG, MMC1_CONTROL_PRGBANK_SIZE)) {
+			case MMC1_CONTROL_PRGBANK_ONEBANK:
+			case MMC1_CONTROL_PRGBANK_ONEBANK_AGAIN: {
+				// get nth doublebank
+				return cart->PRGRom[address - MAPPER_MMC1_PRG_ROM_START + (cart->mapper.mmc1.prgBankReg >> 1) * MMC1_ONEBANK_OFFSET];
 			}
-			// get nth bank
-			return cart->PRGRom[address - MAPPER_MMC1_PRG_ROM_START + cart->mapper.mmc1.prgBankReg * MMC1_FIXED_OFFSET];
-		}
-		case MMC1_CONTROL_PRGBANK_FIX_LAST: {
-			if (address - MAPPER_MMC1_PRG_ROM_START < MMC1_FIXED_OFFSET) {
+
+			case MMC1_CONTROL_PRGBANK_FIX_FIRST: {
+				if (address - MAPPER_MMC1_PRG_ROM_START < MMC1_FIXED_OFFSET) {
+					// get first bank
+					return cart->PRGRom[address - MAPPER_MMC1_PRG_ROM_START];
+				}
 				// get nth bank
 				return cart->PRGRom[address - MAPPER_MMC1_PRG_ROM_START + cart->mapper.mmc1.prgBankReg * MMC1_FIXED_OFFSET];
 			}
-			// get last bank
-			return cart->PRGRom[address - MAPPER_MMC1_PRG_ROM_START + (cart->header.prgRomPages - 1) * MMC1_FIXED_OFFSET];
+			case MMC1_CONTROL_PRGBANK_FIX_LAST: {
+				if (address - MAPPER_MMC1_PRG_ROM_START < MMC1_FIXED_OFFSET) {
+					// get nth bank
+					return cart->PRGRom[address - MAPPER_MMC1_PRG_ROM_START + cart->mapper.mmc1.prgBankReg * MMC1_FIXED_OFFSET];
+				}
+				// get last bank
+				return cart->PRGRom[address - MAPPER_MMC1_PRG_ROM_START + (cart->header.prgRomSize / PRG_ROM_PAGE_SIZE) * MMC1_FIXED_OFFSET];
+			}
 		}
 	}
 }
 
-// todo: add PRG RAM support
-// todo: fix to add compatibility with these stupid variants
+// TODO: fix to add compatibility with these stupid variants
+// TODO: implement PRG-RAM locking
 void MMC1_WriteMemCPU(Cartridge* cart, u16 address, u8 value) {
 	MMC1Mapper* mapperData = &cart->mapper.mmc1;
-	if (address >= MAPPER_MMC1_SERIAL_REGISTER_START) {
+	if (address >= MAPPER_MMC1_PRG_RAM_START && address <= MAPPER_MMC1_PRG_RAM_END) {
+		u16 prgRamSize = 64 << cart->header.prgRamShifts + 64 << cart->header.prgNVRamShifts;
+		if (address - MAPPER_NROM_PRG_RAM_START < prgRamSize) {
+			cart->PRGRam[address - MAPPER_NROM_PRG_RAM_START] = value;
+		} else {
+			// mirroring
+			NROM_WriteMem(cart, MAPPER_NROM_PRG_RAM_END + (address - MAPPER_NROM_PRG_RAM_END) % prgRamSize, value);
+		}
+	} else if (address >= MAPPER_MMC1_SERIAL_REGISTER_START) {
 		if (GetFlag(value, 7)) {
 			mapperData->shiftCnt = 0;
 			mapperData->shiftRegister = 0;
@@ -215,7 +237,7 @@ void MMC1_WriteMemCPU(Cartridge* cart, u16 address, u8 value) {
 // no bus conflict emulation due to lack of documentation for now
 
 static u8 UXROM_TruncateReg(Cartridge* cart, u8 value) {
-	u8 bankCount = cart->header.prgRomPages;
+	u8 bankCount = (cart->header.prgRomSize / PRG_ROM_PAGE_SIZE);
 	u8 bankMask = bankCount - 1;
 	if (value >= bankCount) return value & bankMask;
 	return value;
@@ -224,10 +246,10 @@ static u8 UXROM_TruncateReg(Cartridge* cart, u8 value) {
 u8 UXROM_ReadMemCPU(Cartridge* cart, u16 address) {
 	UXROMMapper* mapperData = &cart->mapper.uxrom;
 	if (address >= MAPPER_UXROM_PRG_ROM_BANKED_START && address <= MAPPER_UXROM_PRG_ROM_BANKED_END) {
-		return cart->PRGRom[address + 0x4000 * mapperData->PRGBank];
+		return cart->PRGRom[address + PRG_ROM_PAGE_SIZE * mapperData->PRGBank];
 	} else if (address >= MAPPER_UXROM_PRG_ROM_FIXED_START) {
 		// reads last bank of PRG ROM
-		return cart->PRGRom[address + 0x4000 * (cart->header.prgRomPages - 1)];
+		return cart->PRGRom[address + cart->header.prgRomSize - PRG_ROM_PAGE_SIZE];
 	}
 }
 
