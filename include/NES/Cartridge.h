@@ -5,20 +5,10 @@
 #include <string.h>
 
 #include "Byte.h"
+#include "Mapper.h"
 
 #define PRG_ROM_PAGE_SIZE 16384
 #define CHR_ROM_PAGE_SIZE 8192
-
-typedef enum MapperID {
-	MAPPER_NROM = 0,
-	MAPPER_MMC1,
-	MAPPER_UXROM,
-	MAPPER_CNROM,
-	MAPPER_MMC3,
-	MAPPER_MMC5,
-
-	MAPPER_COUNT
-} MapperID;
 
 typedef enum ScrollingMode {
 	SCROLLING_VERTICAL = 0,
@@ -41,6 +31,8 @@ typedef enum TimingMode {
 	TIMING_MODE_DENDY,
 } TimingMode;
 
+// TODO: add fields for actual ROM size and RAM size for both PRG and CHR, would help with actually handling weird sizes like 8KB PRG ROM
+// (fucking galaxian... seriously did it save up that much money to use only 8KB of PRG ROM???)
 typedef struct Header {
 	u16 prgRomPages;
 	u8 chrRomPages;
@@ -72,6 +64,7 @@ typedef struct Header {
 
 typedef struct Cartridge {
 	Header header;
+	Mapper mapper;
 
 	u8* PRGRom;
 	u8* CHRRom;
@@ -83,8 +76,6 @@ typedef struct Cartridge {
 	u8* CHRNVRam;
 
 	u8* MiscRom;
-
-	u8 PRGBank;	 // starts at 0, only usable on mappers that use bank switching
 } Cartridge;
 
 Cartridge* CartridgeCreate(u8* bytes, size_t bytesSize);
