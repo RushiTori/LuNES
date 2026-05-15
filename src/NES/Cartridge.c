@@ -34,6 +34,7 @@ typedef enum HeaderFormat {
 	HEADER_UNKNOWN,
 } HeaderFormat;
 
+// TODO: fix parsing, it doesn't actually follow NES2.0 format properly
 static void CartridgeParseNES20Header(Cartridge* cart, u8* bytes) {
 	cart->header.prgRomPages = MakeWord(bytes[NES20_HEADER_HIGH_PRG_ROM], bytes[HEADER_PRG_ROM_PAGES]);
 	cart->header.chrRomPages = bytes[HEADER_CHR_ROM_PAGES];
@@ -125,6 +126,9 @@ Cartridge* CartridgeCreate(u8* bytes, size_t bytesSize) {
 		return NULL;
 		// NOT IMPLEMENTED
 	}
+
+	cart->PRGBank = 0;
+	cart->CHRBank = 0;
 
 	return cart;
 }
