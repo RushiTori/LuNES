@@ -16,6 +16,8 @@
 #define NES20_HEADER_MISC_ROMS 14
 #define NES20_HEADER_DEFAULT_EXP_DEVICE 15
 
+#define TRAINER_START 16
+
 #define FLAG6_MIRRORING 0
 #define FLAG6_PRG_RAM 1
 #define FLAG6_TRAINER 2
@@ -138,18 +140,25 @@ Cartridge* CartridgeCreate(u8* bytes, size_t bytesSize) {
 		size_t MiscRomStart = CHRRomStart + cart->header.chrRomSize;
 		if (cart->header.prgRomSize > 0) memcpy(cart->PRGRom, &(bytes[PRGRomStart]), cart->header.prgRomSize);
 		if (cart->header.chrRomSize > 0) memcpy(cart->CHRRom, &(bytes[CHRRomStart]), cart->header.chrRomSize);
+		// if trainer data exists and we have space to store it, copy it to PRG-RAM
+		if (cart->header.has512BytesPadding && cart->header.prgRamShifts != 0) {
+			memcpy(cart->PRGRam, &(bytes[TRAINER_START]), TRAINER_PADDING_SIZE);
+		}
 		// WIP Mapper and console dependant, to implement later
 		// if (MiscRomSize > 0) memcpy(cart->MiscRom, &(bytes[MiscRomStart]), MiscRomSize);
+
 	} else if (bytes[HEADER_FLAG7] & bytes[0x0C] == 0x04) {
 		fmt = HEADER_ARCHAIC_INES;
 		free(cart);
 		return NULL;
 		// NOT IMPLEMENTED
+
 	} else if (bytes[HEADER_FLAG7] & bytes[0x0C] == 0x00 && bytes[12] == bytes[13] == bytes[14] == bytes[15]) {
 		fmt = HEADER_INES;
 		free(cart);
 		return NULL;
 		// NOT IMPLEMENTED
+
 	} else {
 		fmt = HEADER_UNKNOWN;
 		free(cart);
