@@ -34,8 +34,8 @@ typedef enum TimingMode {
 // TODO: add fields for actual ROM size and RAM size for both PRG and CHR, would help with actually handling weird sizes like 8KB PRG ROM
 // (fucking galaxian... seriously did it save up that much money to use only 8KB of PRG ROM???)
 typedef struct Header {
-	u16 prgRomPages;
-	u8 chrRomPages;
+	size_t prgRomSize;
+	size_t chrRomSize;
 	u8 miscRomPages;
 
 	bool hasPRGRam;

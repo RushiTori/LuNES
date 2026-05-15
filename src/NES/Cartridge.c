@@ -8,7 +8,7 @@
 #define HEADER_FLAG6 6
 #define HEADER_FLAG7 7
 #define HEADER_FLAG8 8
-#define NES20_HEADER_HIGH_PRG_ROM 9
+#define NES20_HEADER_HIGH_ROM 9
 #define NES20_HEADER_PRG_RAM_SIZE 10
 #define NES20_HEADER_VRAM_SIZE 11
 #define NES20_HEADER_TV_SYSTEM 12
@@ -24,6 +24,18 @@
 #define FLAG7_VS_UNISYSTEM 0
 #define FLAG7_PLAYCHOICE_10 1
 
+#define HIGH_ROM_EXP_MASK
+
+#define HIGH_ROM_PRG_BITS_START 0
+#define HIGH_ROM_CHR_BITS_START 4
+#define HIGH_ROM_PRG_BITS_SIZE 4
+#define HIGH_ROM_CHR_BITS_SIZE 4
+
+#define ROM_EXP_MUL_START 0
+#define ROM_EXP_EXPONENT_START 2
+#define ROM_EXP_MUL_SIZE 2
+#define ROM_EXP_EXPONENT_SIZE 6
+
 #define RAM_BASE_VAL 64
 
 typedef enum HeaderFormat {
@@ -36,8 +48,27 @@ typedef enum HeaderFormat {
 
 // TODO: fix parsing, it doesn't actually follow NES2.0 format properly
 static void CartridgeParseNES20Header(Cartridge* cart, u8* bytes) {
-	cart->header.prgRomPages = MakeWord(bytes[NES20_HEADER_HIGH_PRG_ROM], bytes[HEADER_PRG_ROM_PAGES]);
-	cart->header.chrRomPages = bytes[HEADER_CHR_ROM_PAGES];
+	if (GetBits(bytes[NES20_HEADER_HIGH_ROM], HIGH_ROM_PRG_BITS_START, HIGH_ROM_PRG_BITS_SIZE) == 0b1111) {
+		// romSize = 2^E * (MM*2+1)
+		// for the bits of bytes[HEADER_PRG_ROM_PAGES] = EEEE EEMM
+		cart->header.prgRomSize = (1 << GetBits(bytes[HEADER_PRG_ROM_PAGES], ROM_EXP_EXPONENT_START, ROM_EXP_EXPONENT_SIZE)) *
+									  GetBits(bytes[HEADER_PRG_ROM_PAGES], ROM_EXP_MUL_START, ROM_EXP_EXPONENT_START) * 2 +
+								  1;
+	} else {
+		cart->header.prgRomSize =
+			MakeWord(GetBits(bytes[NES20_HEADER_HIGH_ROM], HIGH_ROM_PRG_BITS_START, HIGH_ROM_PRG_BITS_SIZE), bytes[HEADER_PRG_ROM_PAGES]) *
+			PRG_ROM_PAGE_SIZE;
+	}
+
+	if (GetBits(bytes[NES20_HEADER_HIGH_ROM], HIGH_ROM_CHR_BITS_START, HIGH_ROM_CHR_BITS_SIZE) == 0b1111) {
+		// romSize = 2^E * (MM*2+1)
+		// for the bits of bytes[HEADER_PRG_ROM_PAGES] = EEEE EEMM
+		cart->header.chrRomSize = (1 << GetBits(bytes[HEADER_CHR_ROM_PAGES], ROM_EXP_EXPONENT_START, ROM_EXP_EXPONENT_SIZE)) *
+									  GetBits(bytes[HEADER_CHR_ROM_PAGES], ROM_EXP_MUL_START, ROM_EXP_MUL_SIZE) * 2 +
+								  1;
+	} else {
+		cart->header.chrRomSize = MakeWord(GetBits(bytes[NES20_HEADER_HIGH_ROM], 0, 4), bytes[HEADER_CHR_ROM_PAGES]) * CHR_ROM_PAGE_SIZE;
+	}
 
 	cart->header.scrollMode = GetFlag(bytes[6], 0) ? SCROLLING_VERTICAL : SCROLLING_HORIZONTAL;
 
@@ -63,6 +94,7 @@ static void CartridgeParseNES20Header(Cartridge* cart, u8* bytes) {
 
 	// byte 13 ignored for now
 
+	// TODO: might have to change the misc rom implem too, like i did for PRGRom and CHRRom
 	cart->header.miscRomPages = bytes[NES20_HEADER_MISC_ROMS];
 
 	cart->header.expDevice = bytes[NES20_HEADER_DEFAULT_EXP_DEVICE];
@@ -75,7 +107,7 @@ Cartridge* CartridgeCreate(u8* bytes, size_t bytesSize) {
 	if (bytesSize < INES_HEADER_SIZE) return NULL;
 	if (strncmp(bytes, INES_HEADER, strlen(INES_HEADER))) return NULL;
 
-	uint32_t estimateRomSize = 16 + (bytes[NES20_HEADER_HIGH_PRG_ROM] << 8 | bytes[HEADER_PRG_ROM_PAGES]) * PRG_ROM_PAGE_SIZE +
+	uint32_t estimateRomSize = 16 + MakeWord(GetBits(bytes[NES20_HEADER_HIGH_ROM], 0, 4), bytes[HEADER_PRG_ROM_PAGES]) * PRG_ROM_PAGE_SIZE +
 									   bytes[HEADER_CHR_ROM_PAGES] * CHR_ROM_PAGE_SIZE + GetFlag(bytes[HEADER_FLAG6], FLAG6_TRAINER)
 								   ? 512
 								   : 0;
@@ -86,13 +118,11 @@ Cartridge* CartridgeCreate(u8* bytes, size_t bytesSize) {
 		fmt = HEADER_NES20;
 		CartridgeParseNES20Header(cart, bytes);
 
-		size_t PRGRomSize = cart->header.prgRomPages * PRG_ROM_PAGE_SIZE;
-		size_t CHRRomSize = cart->header.chrRomPages * CHR_ROM_PAGE_SIZE;
-		size_t MiscRomSize =
-			bytesSize - (INES_HEADER_SIZE + ((cart->header.has512BytesPadding) ? TRAINER_PADDING_SIZE : 0) + PRGRomSize + CHRRomSize);
+		size_t MiscRomSize = bytesSize - (INES_HEADER_SIZE + ((cart->header.has512BytesPadding) ? TRAINER_PADDING_SIZE : 0) +
+										  cart->header.prgRomSize + cart->header.chrRomSize);
 
-		cart->PRGRom = (cart->header.prgRomPages == 0) ? NULL : malloc(PRGRomSize);
-		cart->CHRRom = (cart->header.chrRomPages == 0) ? NULL : malloc(CHRRomSize);
+		cart->PRGRom = (cart->header.prgRomSize == 0) ? NULL : malloc(cart->header.prgRomSize);
+		cart->CHRRom = (cart->header.chrRomSize == 0) ? NULL : malloc(cart->header.chrRomSize);
 
 		cart->PRGRam = (cart->header.prgRamShifts == 0) ? NULL : malloc(RAM_BASE_VAL << cart->header.prgRamShifts);
 		cart->CHRRam = (cart->header.chrRamShifts == 0) ? NULL : malloc(RAM_BASE_VAL << cart->header.chrRamShifts);
@@ -104,10 +134,10 @@ Cartridge* CartridgeCreate(u8* bytes, size_t bytesSize) {
 		// cart->MiscRom = (cart->header.miscRomPages == 0) ? NULL : malloc()
 
 		size_t PRGRomStart = INES_HEADER_SIZE + (cart->header.has512BytesPadding) ? TRAINER_PADDING_SIZE : 0;
-		size_t CHRRomStart = PRGRomStart + PRGRomSize;
-		size_t MiscRomStart = CHRRomStart + CHRRomSize;
-		if (PRGRomSize > 0) memcpy(cart->PRGRom, &(bytes[PRGRomStart]), PRGRomSize);
-		if (CHRRomSize > 0) memcpy(cart->CHRRom, &(bytes[CHRRomStart]), CHRRomSize);
+		size_t CHRRomStart = PRGRomStart + cart->header.prgRomSize;
+		size_t MiscRomStart = CHRRomStart + cart->header.chrRomSize;
+		if (cart->header.prgRomSize > 0) memcpy(cart->PRGRom, &(bytes[PRGRomStart]), cart->header.prgRomSize);
+		if (cart->header.chrRomSize > 0) memcpy(cart->CHRRom, &(bytes[CHRRomStart]), cart->header.chrRomSize);
 		// WIP Mapper and console dependant, to implement later
 		// if (MiscRomSize > 0) memcpy(cart->MiscRom, &(bytes[MiscRomStart]), MiscRomSize);
 	} else if (bytes[HEADER_FLAG7] & bytes[0x0C] == 0x04) {
@@ -126,9 +156,6 @@ Cartridge* CartridgeCreate(u8* bytes, size_t bytesSize) {
 		return NULL;
 		// NOT IMPLEMENTED
 	}
-
-	cart->PRGBank = 0;
-	cart->CHRBank = 0;
 
 	return cart;
 }
