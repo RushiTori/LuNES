@@ -21,6 +21,7 @@ typedef struct Cartridge Cartridge;
 
 #define CARTRIDGE_BASE_ADDRESS 0x4020
 
+// TODO: add mappers up to mapper 7 because solstice
 typedef enum MapperID {
 	MAPPER_NROM = 0,
 	MAPPER_MMC1,
@@ -28,6 +29,11 @@ typedef enum MapperID {
 	MAPPER_CNROM,
 	MAPPER_MMC3,
 	MAPPER_MMC5,
+	MAPPER_6,
+	MAPPER_AXROM,
+	MAPPER_6_SUB2,
+	MAPPER_MMC2,
+	MAPPER_MMC4,
 
 	MAPPER_COUNT
 } MapperID;
