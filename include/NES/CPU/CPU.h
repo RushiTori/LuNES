@@ -13,15 +13,6 @@
 #define CPU_FLAG_V 6
 #define CPU_FLAG_N 7
 
-typedef enum InterruptID {
-	CPU_INT_RESET,
-	CPU_INT_NMI,
-	CPU_INT_IRQ,
-	CPU_INT_BRK,
-} InterruptID;
-
-u16 GetInterruptVector(InterruptID interrupt);
-
 typedef struct CPU {
 	CPUram memory;
 

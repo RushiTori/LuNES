@@ -1,7 +1,7 @@
 #ifndef LU_NES_INSTRUCTIONS_H
 #define LU_NES_INSTRUCTIONS_H
 
-#include "Byte.h"
+#include "Interrupts.h"
 
 typedef struct CPU CPU;
 
