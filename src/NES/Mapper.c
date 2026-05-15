@@ -22,6 +22,7 @@
 
 // NROM doesn't need init
 
+// TODO: fix reading so that it doesn't rely on a cartridge's PRG-ROM that's at least 16KB in size
 u8 NROM_ReadMemCPU(Cartridge* cart, u16 address) {
 	// doesn't use mapper since mapper is literally empty
 	if (address >= MAPPER_NROM_PRG_RAM_START && address <= MAPPER_NROM_PRG_RAM_END) {
@@ -221,8 +222,9 @@ static u8 UXROM_TruncateReg(Cartridge* cart, u8 value) {
 }
 
 u8 UXROM_ReadMemCPU(Cartridge* cart, u16 address) {
+	UXROMMapper* mapperData = &cart->mapper.uxrom;
 	if (address >= MAPPER_UXROM_PRG_ROM_BANKED_START && address <= MAPPER_UXROM_PRG_ROM_BANKED_END) {
-		return cart->PRGRom[address + 0x4000 * cart->PRGBank];
+		return cart->PRGRom[address + 0x4000 * mapperData->PRGBank];
 	} else if (address >= MAPPER_UXROM_PRG_ROM_FIXED_START) {
 		// reads last bank of PRG ROM
 		return cart->PRGRom[address + 0x4000 * (cart->header.prgRomPages - 1)];
@@ -230,7 +232,8 @@ u8 UXROM_ReadMemCPU(Cartridge* cart, u16 address) {
 }
 
 void UXROM_WriteMemCPU(Cartridge* cart, u16 address, u8 value) {
-	if (address >= MAPPER_UXROM_PRG_BANK_REG_START) cart->PRGBank = UXROMTruncateReg(cart, value);
+	UXROMMapper* mapperData = &cart->mapper.uxrom;
+	if (address >= MAPPER_UXROM_PRG_BANK_REG_START) mapperData->PRGBank = UXROMTruncateReg(cart, value);
 }
 
 // TODO: implement PPU Bus functions for UxROM
