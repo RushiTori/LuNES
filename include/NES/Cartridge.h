@@ -39,8 +39,8 @@ typedef struct Header {
 	u8 miscRomPages;
 
 	bool hasNV;
-	u8 prgRamSize;
-	u8 prgNVRamSize;
+	size_t prgRamSize;
+	size_t prgNVRamSize;
 
 	u8 chrRamSize;
 	u8 chrNVRamSize;
@@ -52,8 +52,6 @@ typedef struct Header {
 
 	ConsoleID consoleID;  // TODO: account for expanded console types, and vs subsystems
 	bool usesNES2Point0;
-
-	u16 chrRamSize;
 
 	TimingMode expectedTimingMode;
 	u8 expDevice;  // expected controller
