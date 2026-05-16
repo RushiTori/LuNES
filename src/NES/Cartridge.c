@@ -170,7 +170,7 @@ Cartridge* CartridgeCreate(u8* bytes, size_t bytesSize) {
 	// WIP Mapper and console dependant, to implement later
 	// cart->MiscRom = (cart->header.miscRomPages == 0) ? NULL : malloc()
 
-	size_t PRGRomStart = INES_HEADER_SIZE + (cart->header.has512BytesPadding) ? TRAINER_PADDING_SIZE : 0;
+	size_t PRGRomStart = INES_HEADER_SIZE + ((cart->header.has512BytesPadding) ? TRAINER_PADDING_SIZE : 0);
 	size_t CHRRomStart = PRGRomStart + cart->header.prgRomSize;
 	// size_t MiscRomStart = CHRRomStart + cart->header.chrRomSize;
 	if (cart->header.prgRomSize > 0) memcpy(cart->PRGRom, &(bytes[PRGRomStart]), cart->header.prgRomSize);
