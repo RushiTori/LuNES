@@ -146,10 +146,7 @@ Cartridge* CartridgeCreate(u8* bytes, size_t bytesSize) {
 
 	} else if ((bytes[HEADER_FLAG7] & 0x0C) == 0x00 && bytes[12] == 0 && bytes[13] == 0 && bytes[14] == 0 && bytes[15] == 0) {
 		// HEADER_INES;
-
 		CartridgeParseINES10Header(cart, bytes);
-
-		return NULL;
 
 	} else {
 		// HEADER_UNKNOWN;
