@@ -169,4 +169,38 @@ Cartridge* CartridgeCreate(u8* bytes, size_t bytesSize) {
 	return cart;
 }
 
+Cartridge* CartridgeCreateFromFile(const char* romFilePath) {
+	FILE* file = fopen(romFilePath, "rb");
+	if (!file) return NULL;
+
+	fseek(file, 0, SEEK_END);
+	size_t romSize = ftell(file);
+	fseek(file, 0, SEEK_SET);
+	if (!romSize) {
+		fclose(file);
+		return NULL;
+	}
+
+	u8* romData = malloc(sizeof(u8) * romSize);
+	if (!romData) {
+		fclose(file);
+		return NULL;
+	}
+
+	size_t readLen = fread(romData, sizeof(u8), romSize, file);
+	while (readLen != romSize) {
+		// Treating a bad read as an interrupted one
+		// WIP: read errno to return in case of actual error
+		size_t currRead = fread(romData + readLen, sizeof(u8), romSize - readLen, file);
+		readLen += currRead;
+	}
+
+	fclose(file);
+
+	Cartridge* cart = CartridgeCreate(romData, romSize);
+	free(romData);
+
+	return cart;
+}
+
 void CartridgeDestroy(Cartridge* cart) {}
