@@ -50,28 +50,6 @@ typedef enum HeaderFormat {
 
 // TODO: fix parsing, it doesn't actually follow NES2.0 format properly
 static void CartridgeParseNES20Header(Cartridge* cart, u8* bytes) {
-	if (GetBits(bytes[NES20_HEADER_HIGH_ROM], HIGH_ROM_PRG_BITS_START, HIGH_ROM_PRG_BITS_SIZE) == 0b1111) {
-		// romSize = 2^E * (MM*2+1)
-		// for the bits of bytes[HEADER_PRG_ROM_PAGES] = EEEE EEMM
-		cart->header.prgRomSize = (1 << GetBits(bytes[HEADER_PRG_ROM_PAGES], ROM_EXP_EXPONENT_START, ROM_EXP_EXPONENT_SIZE)) *
-									  GetBits(bytes[HEADER_PRG_ROM_PAGES], ROM_EXP_MUL_START, ROM_EXP_EXPONENT_START) * 2 +
-								  1;
-	} else {
-		cart->header.prgRomSize =
-			MakeWord(GetBits(bytes[NES20_HEADER_HIGH_ROM], HIGH_ROM_PRG_BITS_START, HIGH_ROM_PRG_BITS_SIZE), bytes[HEADER_PRG_ROM_PAGES]) *
-			PRG_ROM_PAGE_SIZE;
-	}
-
-	if (GetBits(bytes[NES20_HEADER_HIGH_ROM], HIGH_ROM_CHR_BITS_START, HIGH_ROM_CHR_BITS_SIZE) == 0b1111) {
-		// romSize = 2^E * (MM*2+1)
-		// for the bits of bytes[HEADER_PRG_ROM_PAGES] = EEEE EEMM
-		cart->header.chrRomSize = (1 << GetBits(bytes[HEADER_CHR_ROM_PAGES], ROM_EXP_EXPONENT_START, ROM_EXP_EXPONENT_SIZE)) *
-									  GetBits(bytes[HEADER_CHR_ROM_PAGES], ROM_EXP_MUL_START, ROM_EXP_MUL_SIZE) * 2 +
-								  1;
-	} else {
-		cart->header.chrRomSize = MakeWord(GetBits(bytes[NES20_HEADER_HIGH_ROM], 0, 4), bytes[HEADER_CHR_ROM_PAGES]) * CHR_ROM_PAGE_SIZE;
-	}
-
 	cart->header.scrollMode = GetFlag(bytes[6], 0) ? SCROLLING_VERTICAL : SCROLLING_HORIZONTAL;
 
 	cart->header.has512BytesPadding = GetFlag(bytes[HEADER_FLAG6], FLAG6_TRAINER);
@@ -109,13 +87,33 @@ Cartridge* CartridgeCreate(u8* bytes, size_t bytesSize) {
 	if (bytesSize < INES_HEADER_SIZE) return NULL;
 	if (strncmp((char*)bytes, INES_HEADER, strlen(INES_HEADER))) return NULL;
 
-	uint32_t estimateRomSize = 16 + MakeWord(GetBits(bytes[NES20_HEADER_HIGH_ROM], 0, 4), bytes[HEADER_PRG_ROM_PAGES]) * PRG_ROM_PAGE_SIZE +
-									   bytes[HEADER_CHR_ROM_PAGES] * CHR_ROM_PAGE_SIZE + GetFlag(bytes[HEADER_FLAG6], FLAG6_TRAINER)
-								   ? 512
-								   : 0;
-
 	Cartridge* cart = malloc(sizeof(Cartridge));
-	if (((bytes[HEADER_FLAG7] & bytes[0x0C]) == 0x08) && (estimateRomSize == bytesSize || bytes[NES20_HEADER_MISC_ROMS] != 0)) {
+	if (GetBits(bytes[NES20_HEADER_HIGH_ROM], HIGH_ROM_PRG_BITS_START, HIGH_ROM_PRG_BITS_SIZE) == 0b1111) {
+		// romSize = 2^E * (MM*2+1)
+		// for the bits of bytes[HEADER_PRG_ROM_PAGES] = EEEE EEMM
+		cart->header.prgRomSize = (1 << GetBits(bytes[HEADER_PRG_ROM_PAGES], ROM_EXP_EXPONENT_START, ROM_EXP_EXPONENT_SIZE)) *
+									  GetBits(bytes[HEADER_PRG_ROM_PAGES], ROM_EXP_MUL_START, ROM_EXP_EXPONENT_START) * 2 +
+								  1;
+	} else {
+		cart->header.prgRomSize =
+			MakeWord(GetBits(bytes[NES20_HEADER_HIGH_ROM], HIGH_ROM_PRG_BITS_START, HIGH_ROM_PRG_BITS_SIZE), bytes[HEADER_PRG_ROM_PAGES]) *
+			PRG_ROM_PAGE_SIZE;
+	}
+
+	if (GetBits(bytes[NES20_HEADER_HIGH_ROM], HIGH_ROM_CHR_BITS_START, HIGH_ROM_CHR_BITS_SIZE) == 0b1111) {
+		// romSize = 2^E * (MM*2+1)
+		// for the bits of bytes[HEADER_PRG_ROM_PAGES] = EEEE EEMM
+		cart->header.chrRomSize = (1 << GetBits(bytes[HEADER_CHR_ROM_PAGES], ROM_EXP_EXPONENT_START, ROM_EXP_EXPONENT_SIZE)) *
+									  GetBits(bytes[HEADER_CHR_ROM_PAGES], ROM_EXP_MUL_START, ROM_EXP_MUL_SIZE) * 2 +
+								  1;
+	} else {
+		cart->header.chrRomSize = MakeWord(GetBits(bytes[NES20_HEADER_HIGH_ROM], 0, 4), bytes[HEADER_CHR_ROM_PAGES]) * CHR_ROM_PAGE_SIZE;
+	}
+	cart->header.has512BytesPadding = GetFlag(bytes[HEADER_FLAG6], FLAG6_TRAINER);
+
+	uint32_t estimateRomSize = 16 + cart->header.prgRomSize + cart->header.chrRomSize + (cart->header.has512BytesPadding ? 512 : 0);
+
+	if (((bytes[HEADER_FLAG7] & 0x0C) == 0x08) && (estimateRomSize == bytesSize || bytes[NES20_HEADER_MISC_ROMS] != 0)) {
 		// HEADER_NES20;
 		CartridgeParseNES20Header(cart, bytes);
 
@@ -146,13 +144,13 @@ Cartridge* CartridgeCreate(u8* bytes, size_t bytesSize) {
 		// WIP Mapper and console dependant, to implement later
 		// if (MiscRomSize > 0) memcpy(cart->MiscRom, &(bytes[MiscRomStart]), MiscRomSize);
 
-	} else if ((bytes[HEADER_FLAG7] & bytes[0x0C]) == 0x04) {
+	} else if ((bytes[HEADER_FLAG7] & 0x0C) == 0x04) {
 		// HEADER_ARCHAIC_INES;
 		free(cart);
 		return NULL;
 		// NOT IMPLEMENTED
 
-	} else if ((bytes[HEADER_FLAG7] & bytes[0x0C]) == 0x00 && bytes[12] == 0 && bytes[13] == 0 && bytes[14] == 0 && bytes[15] == 0) {
+	} else if ((bytes[HEADER_FLAG7] & 0x0C) == 0x00 && bytes[12] == 0 && bytes[13] == 0 && bytes[14] == 0 && bytes[15] == 0) {
 		// HEADER_INES;
 		free(cart);
 		return NULL;
