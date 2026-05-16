@@ -19,7 +19,7 @@
 #define TRAINER_START 16
 
 #define FLAG6_MIRRORING 0
-#define FLAG6_PRG_RAM 1
+#define FLAG6_HAS_NV 1
 #define FLAG6_TRAINER 2
 #define FLAG6_ALT_NMT_LAYOUT 3
 
@@ -48,23 +48,43 @@ typedef enum HeaderFormat {
 	HEADER_UNKNOWN,
 } HeaderFormat;
 
-// TODO: fix parsing, it doesn't actually follow NES2.0 format properly
-static void CartridgeParseNES20Header(Cartridge* cart, u8* bytes) {
-	cart->header.scrollMode = GetFlag(bytes[6], 0) ? SCROLLING_VERTICAL : SCROLLING_HORIZONTAL;
+static void CartridgeParseINES10Header(Cartridge* cart, u8* bytes) {
+	cart->header.prgRomSize = bytes[HEADER_PRG_ROM_PAGES] * PRG_ROM_PAGE_SIZE;
+	cart->header.chrRomSize = bytes[HEADER_CHR_ROM_PAGES] * CHR_ROM_PAGE_SIZE;
+
+	cart->mapper.id = MakeByte(GetHighNybble(bytes[HEADER_FLAG7]), GetHighNybble(bytes[HEADER_FLAG6]));
+
+	cart->header.scrollMode = GetFlag(bytes[HEADER_FLAG6], 0) ? SCROLLING_VERTICAL : SCROLLING_HORIZONTAL;
 
 	cart->header.has512BytesPadding = GetFlag(bytes[HEADER_FLAG6], FLAG6_TRAINER);
 
-	cart->header.hasPRGRam = GetFlag(bytes[HEADER_FLAG6], FLAG6_PRG_RAM);
+	cart->header.hasNV = GetFlag(bytes[HEADER_FLAG6], FLAG6_HAS_NV);
 
 	cart->header.consoleID = bytes[HEADER_FLAG7] & 0b11;
 
+	if (cart->header.hasNV) {
+		cart->header.prgNVRamSize = bytes[HEADER_FLAG8];
+		if (cart->header.prgNVRamSize == 0) cart->header.prgNVRamSize = 8192;
+	} else {
+		cart->header.prgRamSize = bytes[HEADER_FLAG8];
+		if (cart->header.prgRamSize == 0) cart->header.prgRamSize = 8192;
+	}
+}
+
+static void CartridgeParseNES20Header(Cartridge* cart, u8* bytes) {
+	CartridgeParseINES10Header(cart, bytes);
+
 	// if 0, no ram, if non-zero, is (64 << prg(NV)RamShifts) bytes
-	cart->header.prgRamShifts = GetLowNybble(bytes[NES20_HEADER_PRG_RAM_SIZE]);
-	cart->header.prgNVRamShifts = GetHighNybble(bytes[NES20_HEADER_PRG_RAM_SIZE]);
+	cart->header.prgRamSize = (64 << GetLowNybble(bytes[NES20_HEADER_PRG_RAM_SIZE]));
+	if (cart->header.prgRamSize == 64) cart->header.prgRamSize = 0;
+	cart->header.prgNVRamSize = (64 << GetHighNybble(bytes[NES20_HEADER_PRG_RAM_SIZE]));
+	if (cart->header.prgNVRamSize == 64) cart->header.prgNVRamSize = 0;
 
 	// if 0, no ram, if non-zero, is (64 << chr(NV)RamShifts) bytes
-	cart->header.chrRamShifts = GetLowNybble(bytes[NES20_HEADER_VRAM_SIZE]);
-	cart->header.chrNVRamShifts = GetHighNybble(bytes[NES20_HEADER_VRAM_SIZE]);
+	cart->header.chrRamSize = (64 << GetLowNybble(bytes[NES20_HEADER_VRAM_SIZE]));
+	if (cart->header.chrRamSize == 64) cart->header.chrRamSize = 0;
+	cart->header.chrNVRamSize = (64 << GetHighNybble(bytes[NES20_HEADER_VRAM_SIZE]));
+	if (cart->header.chrNVRamSize == 64) cart->header.chrNVRamSize = 0;
 
 	// defines frame rate
 	cart->header.expectedTimingMode = bytes[NES20_HEADER_TV_SYSTEM] & 0b11;
@@ -118,33 +138,6 @@ Cartridge* CartridgeCreate(u8* bytes, size_t bytesSize) {
 		// HEADER_NES20;
 		CartridgeParseNES20Header(cart, bytes);
 
-		/*size_t MiscRomSize = bytesSize - (INES_HEADER_SIZE + ((cart->header.has512BytesPadding) ? TRAINER_PADDING_SIZE : 0) +
-											  cart->header.prgRomSize + cart->header.chrRomSize);*/
-
-		cart->PRGRom = (cart->header.prgRomSize == 0) ? NULL : malloc(cart->header.prgRomSize);
-		cart->CHRRom = (cart->header.chrRomSize == 0) ? NULL : malloc(cart->header.chrRomSize);
-
-		cart->PRGRam = (cart->header.prgRamShifts == 0) ? NULL : malloc(RAM_BASE_VAL << cart->header.prgRamShifts);
-		cart->CHRRam = (cart->header.chrRamShifts == 0) ? NULL : malloc(RAM_BASE_VAL << cart->header.chrRamShifts);
-
-		cart->PRGNVRam = (cart->header.prgNVRamShifts == 0) ? NULL : malloc(RAM_BASE_VAL << cart->header.prgNVRamShifts);
-		cart->CHRNVRam = (cart->header.chrNVRamShifts == 0) ? NULL : malloc(RAM_BASE_VAL << cart->header.chrNVRamShifts);
-
-		// WIP Mapper and console dependant, to implement later
-		// cart->MiscRom = (cart->header.miscRomPages == 0) ? NULL : malloc()
-
-		size_t PRGRomStart = INES_HEADER_SIZE + (cart->header.has512BytesPadding) ? TRAINER_PADDING_SIZE : 0;
-		size_t CHRRomStart = PRGRomStart + cart->header.prgRomSize;
-		// size_t MiscRomStart = CHRRomStart + cart->header.chrRomSize;
-		if (cart->header.prgRomSize > 0) memcpy(cart->PRGRom, &(bytes[PRGRomStart]), cart->header.prgRomSize);
-		if (cart->header.chrRomSize > 0) memcpy(cart->CHRRom, &(bytes[CHRRomStart]), cart->header.chrRomSize);
-		// if trainer data exists and we have space to store it, copy it to PRG-RAM
-		if (cart->header.has512BytesPadding && cart->header.prgRamShifts != 0) {
-			memcpy(cart->PRGRam, &(bytes[TRAINER_START]), TRAINER_PADDING_SIZE);
-		}
-		// WIP Mapper and console dependant, to implement later
-		// if (MiscRomSize > 0) memcpy(cart->MiscRom, &(bytes[MiscRomStart]), MiscRomSize);
-
 	} else if ((bytes[HEADER_FLAG7] & 0x0C) == 0x04) {
 		// HEADER_ARCHAIC_INES;
 		free(cart);
@@ -153,9 +146,10 @@ Cartridge* CartridgeCreate(u8* bytes, size_t bytesSize) {
 
 	} else if ((bytes[HEADER_FLAG7] & 0x0C) == 0x00 && bytes[12] == 0 && bytes[13] == 0 && bytes[14] == 0 && bytes[15] == 0) {
 		// HEADER_INES;
-		free(cart);
+
+		CartridgeParseINES10Header(cart, bytes);
+
 		return NULL;
-		// NOT IMPLEMENTED
 
 	} else {
 		// HEADER_UNKNOWN;
@@ -163,6 +157,33 @@ Cartridge* CartridgeCreate(u8* bytes, size_t bytesSize) {
 		return NULL;
 		// NOT IMPLEMENTED
 	}
+
+	/*size_t MiscRomSize = bytesSize - (INES_HEADER_SIZE + ((cart->header.has512BytesPadding) ? TRAINER_PADDING_SIZE : 0) +
+											  cart->header.prgRomSize + cart->header.chrRomSize);*/
+
+	cart->PRGRom = (cart->header.prgRomSize == 0) ? NULL : malloc(cart->header.prgRomSize);
+	cart->CHRRom = (cart->header.chrRomSize == 0) ? NULL : malloc(cart->header.chrRomSize);
+
+	cart->PRGRam = (cart->header.prgRamSize == 0) ? NULL : malloc(cart->header.prgRamSize);
+	cart->CHRRam = (cart->header.chrRamSize == 0) ? NULL : malloc(cart->header.chrRamSize);
+
+	cart->PRGNVRam = (cart->header.prgNVRamSize == 0) ? NULL : malloc(cart->header.prgNVRamSize);
+	cart->CHRNVRam = (cart->header.chrNVRamSize == 0) ? NULL : malloc(cart->header.chrNVRamSize);
+
+	// WIP Mapper and console dependant, to implement later
+	// cart->MiscRom = (cart->header.miscRomPages == 0) ? NULL : malloc()
+
+	size_t PRGRomStart = INES_HEADER_SIZE + (cart->header.has512BytesPadding) ? TRAINER_PADDING_SIZE : 0;
+	size_t CHRRomStart = PRGRomStart + cart->header.prgRomSize;
+	// size_t MiscRomStart = CHRRomStart + cart->header.chrRomSize;
+	if (cart->header.prgRomSize > 0) memcpy(cart->PRGRom, &(bytes[PRGRomStart]), cart->header.prgRomSize);
+	if (cart->header.chrRomSize > 0) memcpy(cart->CHRRom, &(bytes[CHRRomStart]), cart->header.chrRomSize);
+	// if trainer data exists and we have space to store it, copy it to PRG-RAM
+	if (cart->header.has512BytesPadding && cart->header.prgRamSize != 0) {
+		memcpy(cart->PRGRam, &(bytes[TRAINER_START]), TRAINER_PADDING_SIZE);
+	}
+	// WIP Mapper and console dependant, to implement later
+	// if (MiscRomSize > 0) memcpy(cart->MiscRom, &(bytes[MiscRomStart]), MiscRomSize);
 
 	return cart;
 }

@@ -38,12 +38,12 @@ typedef struct Header {
 	size_t chrRomSize;
 	u8 miscRomPages;
 
-	bool hasPRGRam;
-	u8 prgRamShifts;
-	u8 prgNVRamShifts;
+	bool hasNV;
+	u8 prgRamSize;
+	u8 prgNVRamSize;
 
-	u8 chrRamShifts;
-	u8 chrNVRamShifts;
+	u8 chrRamSize;
+	u8 chrNVRamSize;
 
 	ScrollingMode scrollMode;
 
