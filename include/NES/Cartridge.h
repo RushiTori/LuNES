@@ -1,6 +1,7 @@
 #ifndef LU_NES_CARTRIDGE_H
 #define LU_NES_CARTRIDGE_H
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -75,5 +76,8 @@ typedef struct Cartridge {
 
 Cartridge* CartridgeCreate(u8* bytes, size_t bytesSize);
 void CartridgeDestroy(Cartridge* cart);
+
+void CartridgeNVSave(Cartridge* cart, const char* filename);
+void CartridgeNVLoad(Cartridge* cart, const char* filename);
 
 #endif	// LU_NES_CARTRIDGE_H

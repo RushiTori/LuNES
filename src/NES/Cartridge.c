@@ -198,3 +198,28 @@ void CartridgeDestroy(Cartridge* cart) {
 	// then destroy it like it's a cartridge of E.T on the Atari 2600
 	free(cart);
 }
+
+void CartridgeNVSave(Cartridge* cart, const char* filename) {
+	if (!cart->header.hasNV) return;
+
+	FILE* f = fopen(filename, "w");
+	if (f == NULL) {
+		printf("couldn't write save data, please check file permissions\n");
+		return;
+	}
+	if (cart->PRGNVRam) fwrite(cart->PRGNVRam, 1, cart->header.prgNVRamSize, f);
+	if (cart->CHRNVRam) fwrite(cart->CHRNVRam, 1, cart->header.chrNVRamSize, f);
+	fclose(f);
+}
+
+void CartridgeNVLoad(Cartridge* cart, const char* filename) {
+	if (!cart->header.hasNV) return;
+	FILE* f = fopen(filename, "r");
+	if (f == NULL) {
+		printf("couldn't read save data, please check file permissions\n");
+		return;
+	}
+	if (cart->PRGNVRam) fread(cart->PRGNVRam, 1, cart->header.prgNVRamSize, f);
+	if (cart->CHRNVRam) fread(cart->CHRNVRam, 1, cart->header.chrNVRamSize, f);
+	fclose(f);
+}
