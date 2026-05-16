@@ -36,24 +36,24 @@ uint64_t CPUStep(CPU* cpu) {
 	return addedCycles;
 }
 
-static void CPUStackPush(CPU* cpu, u8 value) {
+void CPUStackPush(CPU* cpu, u8 value) {
 	u16 realAddr = 0x0100 + cpu->sp;
 	CPUMemWrite(cpu->memory, realAddr, value);
 	cpu->sp--;
 }
 
-static void CPUStackPush16(CPU* cpu, u16 value) {
+void CPUStackPush16(CPU* cpu, u16 value) {
 	CPUStackPush(cpu, GetHighByte(value));
 	CPUStackPush(cpu, GetLowByte(value));
 }
 
-static u8 CPUStackPop(CPU* cpu) {
+u8 CPUStackPop(CPU* cpu) {
 	cpu->sp++;
 	u16 realAddr = 0x0100 + cpu->sp;
 	return CPUMemRead(cpu->memory, realAddr);
 }
 
-static u16 CPUStackPop16(CPU* cpu) {
+u16 CPUStackPop16(CPU* cpu) {
 	u8 low = CPUStackPop(cpu);
 	u8 high = CPUStackPop(cpu);
 	return MakeWord(high, low);

@@ -16,9 +16,9 @@
 #define MAPPER_NROM_PRG_ROM_START 0x8000
 #define MAPPER_NROM_PRG_ROM_END 0xFFFF
 
-#define IsAddrInPrgROMMirror(addr, PRGSize) IsAddressInRange((addr), MAPPER_NROM_PRG_ROM_START + PRGSize, MAPPER_NROM_PRG_ROM_END)
+#define IsAddrInPrgROMMirror(addr, PRGSize) ((addr) >= (MAPPER_NROM_PRG_ROM_START + (PRGSize)))
 #define GetPrgROMMirrorAddr(addr, PRGSize) \
-	GetMirroredAddress((addr), MAPPER_NROM_PRG_ROM_START, MAPPER_NROM_PRG_ROM_START + PRGSize, MAPPER_NROM_PRG_ROM_START + PRGSize)
+	GetMirroredAddress((addr), MAPPER_NROM_PRG_ROM_START, (MAPPER_NROM_PRG_ROM_START + (PRGSize) - 1), (MAPPER_NROM_PRG_ROM_START + (PRGSize)))
 
 // NROM doesn't need init
 
@@ -27,18 +27,19 @@
 u8 NROM_ReadMemCPU(Cartridge* cart, u16 address) {
 	// doesn't use mapper since mapper is literally empty
 	if (address >= MAPPER_NROM_PRG_RAM_START && address <= MAPPER_NROM_PRG_RAM_END) {
-		u16 prgRamSize = 64 << cart->header.prgRamShifts + 64 << cart->header.prgNVRamShifts;
+		u16 prgRamSize = (64 << cart->header.prgRamShifts) + (64 << cart->header.prgNVRamShifts);
 		// ram access
 		if (address - MAPPER_NROM_PRG_RAM_START < prgRamSize) {
 			return (cart->header.hasPRGRam) ? cart->PRGRam[address] : 0;
 		} else {
 			// mirroring
-			return NROM_ReadMem(cart, MAPPER_NROM_PRG_RAM_END + (address - MAPPER_NROM_PRG_RAM_END) % prgRamSize);
+			return NROM_ReadMemCPU(cart, MAPPER_NROM_PRG_RAM_END + (address - MAPPER_NROM_PRG_RAM_END) % prgRamSize);
 		}
 	} else if (address < MAPPER_NROM_PRG_ROM_START + cart->header.prgRomSize) {
 		return cart->PRGRom[address - MAPPER_NROM_PRG_ROM_START];
-	} else if (IsAddrInPrgROMMirror(address, cart->header.prgRomSize)) {
-		return NROMReadMem(cart, GetPrgROMMirrorAddr(address, cart->header.prgRomSize));
+		// it's always gonna fit in a u16, since it's never more than 0x8000 in that context (NROM)
+	} else if (IsAddrInPrgROMMirror(((uint32_t)(address)), cart->header.prgRomSize)) {
+		return NROM_ReadMemCPU(cart, GetPrgROMMirrorAddr(address, cart->header.prgRomSize));
 	}
 	// should never happen
 	return 0;
@@ -46,12 +47,12 @@ u8 NROM_ReadMemCPU(Cartridge* cart, u16 address) {
 
 void NROM_WriteMemCPU(Cartridge* cart, u16 address, u8 value) {
 	if (address >= MAPPER_NROM_PRG_RAM_START && address < MAPPER_NROM_PRG_ROM_START) {
-		u16 prgRamSize = 64 << cart->header.prgRamShifts + 64 << cart->header.prgNVRamShifts;
+		u16 prgRamSize = (64 << cart->header.prgRamShifts) + (64 << cart->header.prgNVRamShifts);
 		if (address - MAPPER_NROM_PRG_RAM_START < prgRamSize) {
 			cart->PRGRam[address - MAPPER_NROM_PRG_RAM_START] = value;
 		} else {
 			// mirroring
-			NROM_WriteMem(cart, MAPPER_NROM_PRG_RAM_END + (address - MAPPER_NROM_PRG_RAM_END) % prgRamSize, value);
+			NROM_WriteMemCPU(cart, MAPPER_NROM_PRG_RAM_END + (address - MAPPER_NROM_PRG_RAM_END) % prgRamSize, value);
 		}
 	}
 }
@@ -60,7 +61,7 @@ void NROM_WriteMemCPU(Cartridge* cart, u16 address, u8 value) {
 #define MAPPER_NROM_CHR_ROM_END 0x1FFF
 
 u8 NROM_ReadMemPPU(Cartridge* cart, u16 address) {
-	if (address >= MAPPER_NROM_CHR_ROM_START && address <= MAPPER_NROM_CHR_ROM_END) {
+	if (address <= MAPPER_NROM_CHR_ROM_END) {
 		if (cart->header.chrRamSize > 0) return cart->CHRRam[address];
 		if (cart->header.chrNVRamShifts > 0) return cart->CHRNVRam[address];
 		return cart->CHRRom[address];
@@ -72,7 +73,7 @@ u8 NROM_ReadMemPPU(Cartridge* cart, u16 address) {
 
 // literally does nothing, no RAM to write to
 void NROM_WriteMemPPU(Cartridge* cart, u16 address, u8 value) {
-	if (address >= MAPPER_NROM_CHR_ROM_START && address <= MAPPER_NROM_CHR_ROM_END) {
+	if (address <= MAPPER_NROM_CHR_ROM_END) {
 		if (cart->header.chrRamSize > 0) cart->CHRRam[address] = value;
 		if (cart->header.chrNVRamShifts > 0) cart->CHRNVRam[address] = value;
 	}
@@ -140,15 +141,15 @@ void MMC1_Init(Cartridge* cart) {
 // TODO: need to test this, Zelda 1 would prolly be fine
 u8 MMC1_ReadMemCPU(Cartridge* cart, u16 address) {
 	if (address >= MAPPER_MMC1_PRG_RAM_START && address <= MAPPER_MMC1_PRG_RAM_END) {
-		u16 prgRamSize = 64 << cart->header.prgRamShifts + 64 << cart->header.prgNVRamShifts;
+		u16 prgRamSize = (64 << cart->header.prgRamShifts) + (64 << cart->header.prgNVRamShifts);
 		// ram access
 		if (address - MAPPER_NROM_PRG_RAM_START < prgRamSize) {
 			return (cart->header.hasPRGRam) ? cart->PRGRam[address] : 0;
 		} else {
 			// mirroring
-			return MMC1_ReadMem(cart, MAPPER_NROM_PRG_RAM_END + (address - MAPPER_NROM_PRG_RAM_END) % prgRamSize);
+			return MMC1_ReadMemCPU(cart, MAPPER_NROM_PRG_RAM_END + (address - MAPPER_NROM_PRG_RAM_END) % prgRamSize);
 		}
-	} else if (address >= MAPPER_MMC1_SERIAL_REGISTER_START && address <= MAPPER_MMC1_SERIAL_REGISTER_END) {
+	} else if (address >= MAPPER_MMC1_SERIAL_REGISTER_START) {
 		switch (GetBits(cart->mapper.mmc1.controlReg, MMC1_CONTROL_PRGBANK_ORIG, MMC1_CONTROL_PRGBANK_SIZE)) {
 			case MMC1_CONTROL_PRGBANK_ONEBANK:
 			case MMC1_CONTROL_PRGBANK_ONEBANK_AGAIN: {
@@ -174,6 +175,8 @@ u8 MMC1_ReadMemCPU(Cartridge* cart, u16 address) {
 			}
 		}
 	}
+	// should never happen
+	return 0;
 }
 
 // TODO: fix to add compatibility with these stupid variants
@@ -181,12 +184,12 @@ u8 MMC1_ReadMemCPU(Cartridge* cart, u16 address) {
 void MMC1_WriteMemCPU(Cartridge* cart, u16 address, u8 value) {
 	MMC1Mapper* mapperData = &cart->mapper.mmc1;
 	if (address >= MAPPER_MMC1_PRG_RAM_START && address <= MAPPER_MMC1_PRG_RAM_END) {
-		u16 prgRamSize = 64 << cart->header.prgRamShifts + 64 << cart->header.prgNVRamShifts;
+		u16 prgRamSize = (64 << cart->header.prgRamShifts) + (64 << cart->header.prgNVRamShifts);
 		if (address - MAPPER_NROM_PRG_RAM_START < prgRamSize) {
 			cart->PRGRam[address - MAPPER_NROM_PRG_RAM_START] = value;
 		} else {
 			// mirroring
-			NROM_WriteMem(cart, MAPPER_NROM_PRG_RAM_END + (address - MAPPER_NROM_PRG_RAM_END) % prgRamSize, value);
+			NROM_WriteMemCPU(cart, MAPPER_NROM_PRG_RAM_END + (address - MAPPER_NROM_PRG_RAM_END) % prgRamSize, value);
 		}
 	} else if (address >= MAPPER_MMC1_SERIAL_REGISTER_START) {
 		if (GetFlag(value, 7)) {
@@ -207,7 +210,7 @@ void MMC1_WriteMemCPU(Cartridge* cart, u16 address, u8 value) {
 					mapperData->chrBank0Reg = valToWrite;
 				} else if (address >= MAPPER_MMC1_WRITETO_CHRBANK1_START && address <= MAPPER_MMC1_WRITETO_CHRBANK1_START) {
 					mapperData->chrBank1Reg = valToWrite;
-				} else if (address >= MAPPER_MMC1_WRITETO_PRGBANK_START && address <= MAPPER_MMC1_WRITETO_PRGBANK_END) {
+				} else if (address >= MAPPER_MMC1_WRITETO_PRGBANK_START && address) {
 					mapperData->prgBankReg = valToWrite;
 				}
 				// if none of those if statements are triggered, something wrong happened
@@ -251,20 +254,23 @@ u8 UXROM_ReadMemCPU(Cartridge* cart, u16 address) {
 		// reads last bank of PRG ROM
 		return cart->PRGRom[address + cart->header.prgRomSize - PRG_ROM_PAGE_SIZE];
 	}
+	// should never happen
+	return 0;
 }
 
 void UXROM_WriteMemCPU(Cartridge* cart, u16 address, u8 value) {
 	UXROMMapper* mapperData = &cart->mapper.uxrom;
-	if (address >= MAPPER_UXROM_PRG_BANK_REG_START) mapperData->PRGBank = UXROMTruncateReg(cart, value);
+	if (address >= MAPPER_UXROM_PRG_BANK_REG_START) mapperData->PRGBank = UXROM_TruncateReg(cart, value);
 }
 
 // TODO: implement PPU Bus functions for UxROM
 
 //-------------------------------------- Mapper 3: MAPPER_CNROM  -------------------------------------------
-u8 CNROM_ReadMemCPU(Cartridge* cart, u16 address) {
+u8 CNROM_ReadMemCPU([[maybe_unused]] Cartridge* cart, [[maybe_unused]] u16 address) {
 	// WIP
+	return 0;
 }
-void CNROM_WriteMemCPU(Cartridge* cart, u16 address, u8 value) {
+void CNROM_WriteMemCPU([[maybe_unused]] Cartridge* cart, [[maybe_unused]] u16 address, [[maybe_unused]] u8 value) {
 	// WIP
 }
 
@@ -276,9 +282,11 @@ typedef void (*MapperInitCb)(Cartridge*);
 void MapperInit(Cartridge* cart) {
 	MapperInitCb func = NULL;
 	switch (cart->mapper.id) {
-		case MAPPER_MMC1: func = MMC1_Init; break;
-		case MAPPER_UXROM: func = UXROM_ReadMemCPU; break;
-		case MAPPER_CNROM: func = CNROM_ReadMemCPU; break;
+		case MAPPER_MMC1:
+			func = MMC1_Init;
+			break;
+			// case MAPPER_UXROM: func = UXROM_Init; break;
+			// case MAPPER_CNROM: func = CNROM_Init; break;
 
 		default:
 	}
@@ -298,6 +306,7 @@ u8 MapperReadMemCPU(Cartridge* cart, u16 address) {
 		default:
 	}
 	if (func) return func(cart, address);
+	return 0;
 }
 
 typedef void (*MapperWriteMemCPUCb)(Cartridge*, u16, u8);
@@ -319,19 +328,20 @@ typedef u8 (*MapperReadMemPPUCb)(Cartridge*, u16);
 u8 MapperReadMemPPU(Cartridge* cart, u16 address) {
 	MapperReadMemPPUCb func = NULL;
 	switch (cart->mapper.id) {
-		case MAPPER_NROM: func = NROM_ReadMemPPU;
+		case MAPPER_NROM: func = NROM_ReadMemPPU; break;
 
 		default:
 	}
 	if (func) func(cart, address);
+	return 0;
 }
 
-typedef u8 (*MapperWriteMemPPUCb)(Cartridge*, u16, u8);
+typedef void (*MapperWriteMemPPUCb)(Cartridge*, u16, u8);
 
 void MapperWriteMemPPU(Cartridge* cart, u16 address, u8 value) {
 	MapperWriteMemPPUCb func = NULL;
 	switch (cart->mapper.id) {
-		case MAPPER_NROM: func = NROM_WriteMemPPU;
+		case MAPPER_NROM: func = NROM_WriteMemPPU; break;
 
 		default:
 	}

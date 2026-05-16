@@ -85,5 +85,6 @@ void CPUMemWritePage16(CPUram ram, u8 page, u8 addr, u16 value) {
 	u8 lowByte = GetLowByte(value);
 	u8 highByte = GetHighByte(value);
 
-	return MakeWord(highByte, lowByte);
+	CPUMemWrite(ram, lowAddr, lowByte);
+	CPUMemWrite(ram, highAddr, highByte);
 }

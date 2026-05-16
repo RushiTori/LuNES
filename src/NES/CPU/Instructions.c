@@ -19,11 +19,8 @@ bool InstCallShouldGetArgValue(InstCall call) {
 }
 
 static void CPUUpdateNZ(CPU* cpu, u8 value) {
-	ClearBit(cpu->flags, CPU_FLAG_N);
-	ClearBit(cpu->flags, CPU_FLAG_Z);
-
-	if (value & 0x80) SetBit(cpu->flags, CPU_FLAG_N);
-	if (value == 0) SetBit(cpu->flags, CPU_FLAG_Z);
+	cpu->flags = AssignBit(cpu->flags, CPU_FLAG_N, value & 0x80);
+	cpu->flags = AssignBit(cpu->flags, CPU_FLAG_Z, value == 0);
 }
 
 static void AssignAndUpdateNZ(CPU* cpu, u8* dest, u8 src) {
@@ -37,7 +34,6 @@ static void MemWriteAndUpdateNZ(CPU* cpu, u16 addr, u8 value) {
 }
 
 static u8 LSRbase(CPU* cpu, u8 value) {
-	u8 oldCarry = GetBit(cpu->flags, CPU_FLAG_C);
 	u8 newCarry = GetBit(value, 0);
 	cpu->flags = AssignBit(cpu->flags, CPU_FLAG_C, newCarry);
 
@@ -45,7 +41,6 @@ static u8 LSRbase(CPU* cpu, u8 value) {
 }
 
 static u8 ASLbase(CPU* cpu, u8 value) {
-	u8 oldCarry = GetBit(cpu->flags, CPU_FLAG_C);
 	u8 newCarry = GetBit(value, 7);
 	cpu->flags = AssignBit(cpu->flags, CPU_FLAG_C, newCarry);
 
@@ -86,24 +81,23 @@ static void JMPccbase(CPU* cpu, u16 addr, bool doJump) {
 }
 
 // clear flags
-void CLC(CPU* cpu, u16 input) { cpu->flags = ClearBit(cpu->flags, CPU_FLAG_C); }
-void CLI(CPU* cpu, u16 input) { cpu->flags = ClearBit(cpu->flags, CPU_FLAG_I); }
-void CLV(CPU* cpu, u16 input) { cpu->flags = ClearBit(cpu->flags, CPU_FLAG_V); }
-void CLD(CPU* cpu, u16 input) { cpu->flags = ClearBit(cpu->flags, CPU_FLAG_D); }
+void CLC(CPU* cpu, [[maybe_unused]] u16 input) { cpu->flags = ClearBit(cpu->flags, CPU_FLAG_C); }
+void CLI(CPU* cpu, [[maybe_unused]] u16 input) { cpu->flags = ClearBit(cpu->flags, CPU_FLAG_I); }
+void CLV(CPU* cpu, [[maybe_unused]] u16 input) { cpu->flags = ClearBit(cpu->flags, CPU_FLAG_V); }
+void CLD(CPU* cpu, [[maybe_unused]] u16 input) { cpu->flags = ClearBit(cpu->flags, CPU_FLAG_D); }
 
 // set flags
-void SEC(CPU* cpu, u16 input) { cpu->flags = SetBit(cpu->flags, CPU_FLAG_C); }
-void SEI(CPU* cpu, u16 input) { cpu->flags = SetBit(cpu->flags, CPU_FLAG_I); }
-void SED(CPU* cpu, u16 input) { cpu->flags = SetBit(cpu->flags, CPU_FLAG_D); }
+void SEC(CPU* cpu, [[maybe_unused]] u16 input) { cpu->flags = SetBit(cpu->flags, CPU_FLAG_C); }
+void SEI(CPU* cpu, [[maybe_unused]] u16 input) { cpu->flags = SetBit(cpu->flags, CPU_FLAG_I); }
+void SED(CPU* cpu, [[maybe_unused]] u16 input) { cpu->flags = SetBit(cpu->flags, CPU_FLAG_D); }
 
 // transfers
-void TAX(CPU* cpu, u16 input) { AssignAndUpdateNZ(cpu, &(cpu->x), cpu->a); }
-void TAY(CPU* cpu, u16 input) { AssignAndUpdateNZ(cpu, &(cpu->y), cpu->a); }
-void TAS(CPU* cpu, u16 input) { AssignAndUpdateNZ(cpu, &(cpu->sp), cpu->a); }
-void TXA(CPU* cpu, u16 input) { AssignAndUpdateNZ(cpu, &(cpu->a), cpu->x); }
-void TXS(CPU* cpu, u16 input) { cpu->sp = cpu->x; }
-void TYA(CPU* cpu, u16 input) { AssignAndUpdateNZ(cpu, &(cpu->a), cpu->y); }
-void TSX(CPU* cpu, u16 input) { AssignAndUpdateNZ(cpu, &(cpu->x), cpu->sp); }
+void TAX(CPU* cpu, [[maybe_unused]] u16 input) { AssignAndUpdateNZ(cpu, &(cpu->x), cpu->a); }
+void TAY(CPU* cpu, [[maybe_unused]] u16 input) { AssignAndUpdateNZ(cpu, &(cpu->y), cpu->a); }
+void TXA(CPU* cpu, [[maybe_unused]] u16 input) { AssignAndUpdateNZ(cpu, &(cpu->a), cpu->x); }
+void TXS(CPU* cpu, [[maybe_unused]] u16 input) { cpu->sp = cpu->x; }
+void TYA(CPU* cpu, [[maybe_unused]] u16 input) { AssignAndUpdateNZ(cpu, &(cpu->a), cpu->y); }
+void TSX(CPU* cpu, [[maybe_unused]] u16 input) { AssignAndUpdateNZ(cpu, &(cpu->x), cpu->sp); }
 
 // store
 void STA(CPU* cpu, u16 input) { CPUMemWrite(cpu->memory, input, cpu->a); }
@@ -117,13 +111,13 @@ void LDY(CPU* cpu, u16 input) { AssignAndUpdateNZ(cpu, &(cpu->x), CPUMemRead(cpu
 
 // inc
 void INC(CPU* cpu, u16 input) { MemWriteAndUpdateNZ(cpu, input, CPUMemRead(cpu->memory, input) + 1); }
-void INX(CPU* cpu, u16 input) { AssignAndUpdateNZ(cpu, &(cpu->y), cpu->y + 1); }
-void INY(CPU* cpu, u16 input) { AssignAndUpdateNZ(cpu, &(cpu->x), cpu->x + 1); }
+void INX(CPU* cpu, [[maybe_unused]] u16 input) { AssignAndUpdateNZ(cpu, &(cpu->y), cpu->y + 1); }
+void INY(CPU* cpu, [[maybe_unused]] u16 input) { AssignAndUpdateNZ(cpu, &(cpu->x), cpu->x + 1); }
 
 // dec
 void DEC(CPU* cpu, u16 input) { MemWriteAndUpdateNZ(cpu, input, CPUMemRead(cpu->memory, input) - 1); }
-void DEX(CPU* cpu, u16 input) { AssignAndUpdateNZ(cpu, &(cpu->y), cpu->y - 1); }
-void DEY(CPU* cpu, u16 input) { AssignAndUpdateNZ(cpu, &(cpu->x), cpu->x - 1); }
+void DEX(CPU* cpu, [[maybe_unused]] u16 input) { AssignAndUpdateNZ(cpu, &(cpu->y), cpu->y - 1); }
+void DEY(CPU* cpu, [[maybe_unused]] u16 input) { AssignAndUpdateNZ(cpu, &(cpu->x), cpu->x - 1); }
 
 // arithmetics land
 void ADC(CPU* cpu, u16 input) {
@@ -150,27 +144,27 @@ void EOR(CPU* cpu, u16 input) { AssignAndUpdateNZ(cpu, &(cpu->a), cpu->a ^ GetLo
 void ORA(CPU* cpu, u16 input) { AssignAndUpdateNZ(cpu, &(cpu->a), cpu->a | GetLowByte(input)); }
 
 void LSR(CPU* cpu, u16 input) { MemWriteAndUpdateNZ(cpu, input, LSRbase(cpu, CPUMemRead(cpu->memory, input))); }
-void LSRa(CPU* cpu, u16 input) { AssignAndUpdateNZ(cpu, &(cpu->a), LSRbase(cpu, cpu->a)); }
+void LSRa(CPU* cpu, [[maybe_unused]] u16 input) { AssignAndUpdateNZ(cpu, &(cpu->a), LSRbase(cpu, cpu->a)); }
 
 void ASL(CPU* cpu, u16 input) { MemWriteAndUpdateNZ(cpu, input, ASLbase(cpu, CPUMemRead(cpu->memory, input))); }
-void ASLa(CPU* cpu, u16 input) { AssignAndUpdateNZ(cpu, &(cpu->a), ASLbase(cpu, cpu->a)); }
+void ASLa(CPU* cpu, [[maybe_unused]] u16 input) { AssignAndUpdateNZ(cpu, &(cpu->a), ASLbase(cpu, cpu->a)); }
 
 void ROL(CPU* cpu, u16 input) { MemWriteAndUpdateNZ(cpu, input, ROLbase(cpu, CPUMemRead(cpu->memory, input))); }
-void ROLa(CPU* cpu, u16 input) { AssignAndUpdateNZ(cpu, &(cpu->a), ROLbase(cpu, cpu->a)); }
+void ROLa(CPU* cpu, [[maybe_unused]] u16 input) { AssignAndUpdateNZ(cpu, &(cpu->a), ROLbase(cpu, cpu->a)); }
 
 void ROR(CPU* cpu, u16 input) { MemWriteAndUpdateNZ(cpu, input, RORbase(cpu, CPUMemRead(cpu->memory, input))); }
-void RORa(CPU* cpu, u16 input) { AssignAndUpdateNZ(cpu, &(cpu->a), RORbase(cpu, cpu->a)); }
+void RORa(CPU* cpu, [[maybe_unused]] u16 input) { AssignAndUpdateNZ(cpu, &(cpu->a), RORbase(cpu, cpu->a)); }
 
 // stack
-void PHP(CPU* cpu, u16 input) { CPUStackPush(cpu, SetBit(cpu->flags, CPU_FLAG_B)); }
+void PHP(CPU* cpu, [[maybe_unused]] u16 input) { CPUStackPush(cpu, SetBit(cpu->flags, CPU_FLAG_B)); }
 
-void PLP(CPU* cpu, u16 input) {
+void PLP(CPU* cpu, [[maybe_unused]] u16 input) {
 	cpu->flags = CPUStackPop(cpu);
 	cpu->flags = ClearBit(cpu->flags, CPU_FLAG_B);
 }
 
-void PHA(CPU* cpu, u16 input) { CPUStackPush(cpu, cpu->a); }
-void PLA(CPU* cpu, u16 input) { AssignAndUpdateNZ(cpu, &(cpu->a), CPUStackPop(cpu)); }
+void PHA(CPU* cpu, [[maybe_unused]] u16 input) { CPUStackPush(cpu, cpu->a); }
+void PLA(CPU* cpu, [[maybe_unused]] u16 input) { AssignAndUpdateNZ(cpu, &(cpu->a), CPUStackPop(cpu)); }
 
 // compare
 void BIT(CPU* cpu, u16 input) {
@@ -201,98 +195,102 @@ void JSR(CPU* cpu, u16 input) {
 
 void JMP(CPU* cpu, u16 input) { cpu->pc = input; }
 
-void RTS(CPU* cpu, u16 input) { cpu->pc = CPUStackPop16(cpu) + 1; }
+void RTS(CPU* cpu, [[maybe_unused]] u16 input) { cpu->pc = CPUStackPop16(cpu) + 1; }
 
-void RTI(CPU* cpu, u16 input) {
+void RTI(CPU* cpu, [[maybe_unused]] u16 input) {
 	cpu->flags = CPUStackPop(cpu);
 	cpu->pc = CPUStackPop16(cpu);
 }
 
 // weird land
-void BRK(CPU* cpu, u16 input) {
+void BRK(CPU* cpu, [[maybe_unused]] u16 input) {
 	cpu->pc++;
 	CPUInterrupt(cpu, CPU_INT_BRK, true);
 }
 
-void NOP(CPU* cpu, u16 input) {}
+void NOP([[maybe_unused]] CPU* cpu, [[maybe_unused]] u16 input) {}
 
 // Illegal Land
-void JAM(CPU* cpu, u16 input) {
+void JAM([[maybe_unused]] CPU* cpu, [[maybe_unused]] u16 input) {
 	// WIP
 }
 
-void SAX(CPU* cpu, u16 input) {
+void SAX([[maybe_unused]] CPU* cpu, [[maybe_unused]] u16 input) {
 	// WIP
 }
 
-void SLO(CPU* cpu, u16 input) {
+void SLO([[maybe_unused]] CPU* cpu, [[maybe_unused]] u16 input) {
 	// WIP
 }
 
-void ANC(CPU* cpu, u16 input) {
+void ANC([[maybe_unused]] CPU* cpu, [[maybe_unused]] u16 input) {
 	// WIP
 }
 
-void RLA(CPU* cpu, u16 input) {
+void RLA([[maybe_unused]] CPU* cpu, [[maybe_unused]] u16 input) {
 	// WIP
 }
 
-void SRE(CPU* cpu, u16 input) {
+void SRE([[maybe_unused]] CPU* cpu, [[maybe_unused]] u16 input) {
 	// WIP
 }
 
-void ALR(CPU* cpu, u16 input) {
+void ALR([[maybe_unused]] CPU* cpu, [[maybe_unused]] u16 input) {
 	// WIP
 }
 
-void RRA(CPU* cpu, u16 input) {
+void RRA([[maybe_unused]] CPU* cpu, [[maybe_unused]] u16 input) {
 	// WIP
 }
 
-void ARR(CPU* cpu, u16 input) {
+void ARR([[maybe_unused]] CPU* cpu, [[maybe_unused]] u16 input) {
 	// WIP
 }
 
-void ANE(CPU* cpu, u16 input) {
+void ANE([[maybe_unused]] CPU* cpu, [[maybe_unused]] u16 input) {
 	// WIP
 }
 
-void SHA(CPU* cpu, u16 input) {
+void SHA([[maybe_unused]] CPU* cpu, [[maybe_unused]] u16 input) {
 	// WIP
 }
 
-void SHX(CPU* cpu, u16 input) {
+void SHX([[maybe_unused]] CPU* cpu, [[maybe_unused]] u16 input) {
 	// WIP
 }
 
-void SHY(CPU* cpu, u16 input) {
+void SHY([[maybe_unused]] CPU* cpu, [[maybe_unused]] u16 input) {
 	// WIP
 }
 
-void LAX(CPU* cpu, u16 input) {
+void LAX([[maybe_unused]] CPU* cpu, [[maybe_unused]] u16 input) {
 	// WIP
 }
 
-void LXA(CPU* cpu, u16 input) {
+void LXA([[maybe_unused]] CPU* cpu, [[maybe_unused]] u16 input) {
 	// WIP
 }
 
-void LAS(CPU* cpu, u16 input) {
+void LAS([[maybe_unused]] CPU* cpu, [[maybe_unused]] u16 input) {
 	// WIP
 }
 
-void DCP(CPU* cpu, u16 input) {
+void DCP([[maybe_unused]] CPU* cpu, [[maybe_unused]] u16 input) {
 	// WIP
 }
 
-void SBX(CPU* cpu, u16 input) {
+void SBX([[maybe_unused]] CPU* cpu, [[maybe_unused]] u16 input) {
 	// WIP
 }
 
-void ISC(CPU* cpu, u16 input) {
+void ISC([[maybe_unused]] CPU* cpu, [[maybe_unused]] u16 input) {
 	// WIP
 }
 
-void USBC(CPU* cpu, u16 input) {
+void USBC([[maybe_unused]] CPU* cpu, [[maybe_unused]] u16 input) {
+	// WIP
+}
+
+void TAS([[maybe_unused]] CPU* cpu, [[maybe_unused]] u16 input) {
 	// WIP
 }
