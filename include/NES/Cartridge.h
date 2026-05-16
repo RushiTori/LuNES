@@ -53,9 +53,6 @@ typedef struct Header {
 	ConsoleID consoleID;  // TODO: account for expanded console types, and vs subsystems
 	bool usesNES2Point0;
 
-	MapperID mapperID;
-	u8 submapperID;	 // TODO: change type
-
 	u16 chrRamSize;
 
 	TimingMode expectedTimingMode;
