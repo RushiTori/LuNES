@@ -335,7 +335,7 @@ u8 MapperReadMemPPU(Cartridge* cart, u16 address) {
 
 		default:
 	}
-	if (func) func(cart, address);
+	if (func) return func(cart, address);
 	return 0;
 }
 
