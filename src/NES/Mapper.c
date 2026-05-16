@@ -200,7 +200,7 @@ void MMC1_WriteMemCPU(Cartridge* cart, u16 address, u8 value) {
 			mapperData->shiftRegister = 0;
 			mapperData->controlReg |= 0xC;
 		} else {
-			mapperData->shiftRegister = (cart->mapper.mmc1.shiftRegister << 1) | (value & 0b1);
+			mapperData->shiftRegister = (cart->mapper.mmc1.shiftRegister >> 1) | ((value & 0b1) << 4);
 			mapperData->shiftCnt++;
 
 			if (mapperData->shiftCnt >= 5) {
