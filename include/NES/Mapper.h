@@ -44,6 +44,7 @@ typedef enum MapperID {
 
 typedef struct Mapper {
 	MapperID id;
+	u8 submapperID;
 	union {
 		NROMMapper nrom;
 		MMC1Mapper mmc1;
