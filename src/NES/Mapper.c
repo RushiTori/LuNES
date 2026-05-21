@@ -90,6 +90,11 @@ void NROM_WriteMemPPU(Cartridge* cart, u16 address, u8 value) {
 #define MAPPER_MMC1_PRG_ROM_MID 0xC000
 #define MAPPER_MMC1_PRG_ROM_END 0xFFFF
 
+#define MAPPER_MMC1_CHR_BANK0_START 0x0000
+#define MAPPER_MMC1_CHR_BANK0_END 0x0FFF
+#define MAPPER_MMC1_CHR_BANK1_START 0x1000
+#define MAPPER_MMC1_CHR_BANK1_END 0x1FFF
+
 #define MAPPER_MMC1_SERIAL_REGISTER_START 0x8000
 #define MAPPER_MMC1_SERIAL_REGISTER_END 0xFFFF
 
@@ -166,7 +171,7 @@ u8 MMC1_ReadMemCPU(Cartridge* cart, u16 address) {
 					return cart->PRGRom[address - MAPPER_MMC1_PRG_ROM_START];
 				}
 				// get nth bank
-				return cart->PRGRom[address - MAPPER_MMC1_PRG_ROM_START + cart->mapper.mmc1.prgBankReg * MMC1_FIXED_OFFSET];
+				return cart->PRGRom[address - MAPPER_MMC1_PRG_ROM_MID + cart->mapper.mmc1.prgBankReg * MMC1_FIXED_OFFSET];
 			}
 			case MMC1_CONTROL_PRGBANK_FIX_LAST: {
 				if (address - MAPPER_MMC1_PRG_ROM_START < MMC1_FIXED_OFFSET) {
@@ -174,7 +179,7 @@ u8 MMC1_ReadMemCPU(Cartridge* cart, u16 address) {
 					return cart->PRGRom[address - MAPPER_MMC1_PRG_ROM_START + cart->mapper.mmc1.prgBankReg * MMC1_FIXED_OFFSET];
 				}
 				// get last bank
-				return cart->PRGRom[address - MAPPER_MMC1_PRG_ROM_START + (cart->header.prgRomSize / PRG_ROM_PAGE_SIZE) * MMC1_FIXED_OFFSET];
+				return cart->PRGRom[address - MAPPER_MMC1_PRG_ROM_MID + ((cart->header.prgRomSize / PRG_ROM_PAGE_SIZE) - 1) * MMC1_FIXED_OFFSET];
 			}
 		}
 	}
@@ -222,7 +227,68 @@ void MMC1_WriteMemCPU(Cartridge* cart, u16 address, u8 value) {
 	}
 }
 
-// TODO: implement PPU Bus functions for MMC1
+u8 MMC1_ReadMemPPU(Cartridge* cart, u16 address) {
+	MMC1Mapper* mapperData = &cart->mapper.mmc1;
+	u8 bank0;
+	u8 bank1;
+
+	if (!GetFlag(mapperData->controlReg, MMC1_CONTROL_CHRBANK_BIT)) {
+		bank0 = (mapperData->chrBank0Reg & 0b11110);
+		bank1 = (mapperData->chrBank0Reg & 0b11110) | 1;
+	} else {
+		bank0 = mapperData->chrBank0Reg;
+		bank1 = mapperData->chrBank1Reg;
+	}
+
+	if (address <= MAPPER_MMC1_CHR_BANK0_END) {
+		if (cart->CHRRom) {
+			return cart->CHRRom[bank0 << 12 | address];
+		} else if (cart->CHRRam) {
+			return cart->CHRRam[bank0 << 12 | address];
+		} else if (cart->CHRNVRam) {
+			return cart->CHRNVRam[bank0 << 12 | address];
+		}
+	} else if (address <= MAPPER_MMC1_CHR_BANK1_END) {
+		if (cart->CHRRom) {
+			return cart->CHRRom[bank1 << 12 | (address - 0x1000)];
+		} else if (cart->CHRRam) {
+			return cart->CHRRam[bank1 << 12 | (address - 0x1000)];
+		} else if (cart->CHRNVRam) {
+			return cart->CHRNVRam[bank1 << 12 | (address - 0x1000)];
+		}
+	}
+	// should never happen
+	return 0;
+}
+
+void MMC1_WriteMemPPU(Cartridge* cart, u16 address, u8 value) {
+	if (cart->CHRRom) return;
+	MMC1Mapper* mapperData = &cart->mapper.mmc1;
+	u8 bank0;
+	u8 bank1;
+
+	if (GetFlag(mapperData->controlReg, MMC1_CONTROL_CHRBANK_BIT)) {
+		bank0 = (mapperData->chrBank0Reg & 0b11110);
+		bank1 = (mapperData->chrBank0Reg & 0b11110) | 1;
+	} else {
+		bank0 = mapperData->chrBank0Reg;
+		bank1 = mapperData->chrBank1Reg;
+	}
+
+	if (address <= MAPPER_MMC1_CHR_BANK0_END) {
+		if (cart->CHRRam) {
+			cart->CHRRam[bank0 << 12 | address] = value;
+		} else if (cart->CHRNVRam) {
+			cart->CHRNVRam[bank0 << 12 | address] = value;
+		}
+	} else if (address <= MAPPER_MMC1_CHR_BANK1_END) {
+		if (cart->CHRRam) {
+			cart->CHRRam[bank1 << 12 | address] = value;
+		} else if (cart->CHRNVRam) {
+			cart->CHRNVRam[bank1 << 12 | address] = value;
+		}
+	}
+}
 
 //-------------------------------------- Mapper 2: MAPPER_UXROM  -------------------------------------------
 
@@ -332,6 +398,7 @@ u8 MapperReadMemPPU(Cartridge* cart, u16 address) {
 	MapperReadMemPPUCb func = NULL;
 	switch (cart->mapper.id) {
 		case MAPPER_NROM: func = NROM_ReadMemPPU; break;
+		case MAPPER_MMC1: func = MMC1_ReadMemPPU; break;
 
 		default:
 	}
@@ -345,6 +412,7 @@ void MapperWriteMemPPU(Cartridge* cart, u16 address, u8 value) {
 	MapperWriteMemPPUCb func = NULL;
 	switch (cart->mapper.id) {
 		case MAPPER_NROM: func = NROM_WriteMemPPU; break;
+		case MAPPER_MMC1: func = MMC1_WriteMemPPU; break;
 
 		default:
 	}
