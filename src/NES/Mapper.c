@@ -308,20 +308,22 @@ void MMC1_WriteMemPPU(Cartridge* cart, u16 address, u8 value) {
 
 // no bus conflict emulation due to lack of documentation for now
 
+/*
 static u8 UXROM_TruncateReg(Cartridge* cart, u8 value) {
 	u8 bankCount = (cart->header.prgRomSize / PRG_ROM_PAGE_SIZE);
 	u8 bankMask = bankCount - 1;
 	if (value >= bankCount) return value & bankMask;
 	return value;
 }
+*/
 
 u8 UXROM_ReadMemCPU(Cartridge* cart, u16 address) {
 	UXROMMapper* mapperData = &cart->mapper.uxrom;
 	if (address >= MAPPER_UXROM_PRG_ROM_BANKED_START && address <= MAPPER_UXROM_PRG_ROM_BANKED_END) {
-		return cart->PRGRom[address + PRG_ROM_PAGE_SIZE * mapperData->PRGBank];
+		return cart->PRGRom[(address % 0x4000 + PRG_ROM_PAGE_SIZE * mapperData->PRGBank) % cart->header.prgRomSize];
 	} else if (address >= MAPPER_UXROM_PRG_ROM_FIXED_START) {
 		// reads last bank of PRG ROM
-		return cart->PRGRom[address + cart->header.prgRomSize - PRG_ROM_PAGE_SIZE];
+		return cart->PRGRom[(address % 0x4000 + cart->header.prgRomSize - PRG_ROM_PAGE_SIZE) % cart->header.prgRomSize];
 	}
 	// should never happen
 	return 0;
@@ -329,10 +331,31 @@ u8 UXROM_ReadMemCPU(Cartridge* cart, u16 address) {
 
 void UXROM_WriteMemCPU(Cartridge* cart, u16 address, u8 value) {
 	UXROMMapper* mapperData = &cart->mapper.uxrom;
-	if (address >= MAPPER_UXROM_PRG_BANK_REG_START) mapperData->PRGBank = UXROM_TruncateReg(cart, value);
+	if (address >= MAPPER_UXROM_PRG_BANK_REG_START) mapperData->PRGBank = value;  // UXROM_TruncateReg(cart, value);
 }
 
-// TODO: implement PPU Bus functions for UxROM
+u8 UXROM_ReadMemPPU(Cartridge* cart, u16 address) {
+	if (address < 0x2000) {
+		if (cart->CHRRom) {
+			return cart->CHRRom[address];
+		} else if (cart->CHRRam) {
+			return cart->CHRRam[address];
+		} else if (cart->CHRNVRam) {
+			return cart->CHRNVRam[address];
+		}
+	}
+	return 0;
+}
+
+void UXROM_WriteMemPPU(Cartridge* cart, u16 address, u8 value) {
+	if (address < 0x2000) {
+		if (cart->CHRRam) {
+			cart->CHRRam[address] = value;
+		} else if (cart->CHRNVRam) {
+			cart->CHRNVRam[address] = value;
+		}
+	}
+}
 
 //-------------------------------------- Mapper 3: MAPPER_CNROM  -------------------------------------------
 u8 CNROM_ReadMemCPU([[maybe_unused]] Cartridge* cart, [[maybe_unused]] u16 address) {
@@ -399,6 +422,7 @@ u8 MapperReadMemPPU(Cartridge* cart, u16 address) {
 	switch (cart->mapper.id) {
 		case MAPPER_NROM: func = NROM_ReadMemPPU; break;
 		case MAPPER_MMC1: func = MMC1_ReadMemPPU; break;
+		case MAPPER_UXROM: func = UXROM_ReadMemPPU; break;
 
 		default:
 	}
@@ -413,6 +437,7 @@ void MapperWriteMemPPU(Cartridge* cart, u16 address, u8 value) {
 	switch (cart->mapper.id) {
 		case MAPPER_NROM: func = NROM_WriteMemPPU; break;
 		case MAPPER_MMC1: func = MMC1_WriteMemPPU; break;
+		case MAPPER_UXROM: func = UXROM_WriteMemPPU; break;
 
 		default:
 	}
