@@ -4,6 +4,7 @@
 #include "Byte.h"
 
 typedef struct CNROMMapper {
+	u8 CHRBank;
 } CNROMMapper;
 
 #endif	// LU_NES_CNROM_H
