@@ -30,7 +30,7 @@ u8 NROM_ReadMemCPU(Cartridge* cart, u16 address) {
 		u16 prgRamSize = cart->header.prgRamSize + cart->header.prgNVRamSize;
 		// ram access
 		if (address - MAPPER_NROM_PRG_RAM_START < prgRamSize) {
-			return (cart->header.hasNV) ? cart->PRGRam[address] : cart->PRGNVRam[address];
+			return (cart->header.hasNV) ? cart->PRGRam[address % cart->header.prgRamSize] : cart->PRGNVRam[address];
 		} else {
 			// mirroring
 			return NROM_ReadMemCPU(cart, MAPPER_NROM_PRG_RAM_END + (address - MAPPER_NROM_PRG_RAM_END) % prgRamSize);
@@ -358,15 +358,70 @@ void UXROM_WriteMemPPU(Cartridge* cart, u16 address, u8 value) {
 }
 
 //-------------------------------------- Mapper 3: MAPPER_CNROM  -------------------------------------------
-u8 CNROM_ReadMemCPU([[maybe_unused]] Cartridge* cart, [[maybe_unused]] u16 address) {
+u8 CNROM_ReadMemCPU(Cartridge* cart, u16 address) {
+	if (address >= 0x6000 && address <= 0x7FFF) {
+		return cart->PRGRam[address % cart->header.prgRamSize];	 // read PRG-RAM properly, emulate mirroring
+	}
+
+	if (address >= 0x8000) {
+		return cart->PRGRom[address % 0x8000];
+	}
+	return 0;
+}
+void CNROM_WriteMemCPU(Cartridge* cart, u16 address, u8 value) {
+	if (address >= 0x6000 && address <= 0x7FFF) {
+		cart->PRGRam[address % cart->header.prgRamSize] = value;  // write PRG-RAM properly, emulate mirroring
+	}
+
+	if (address >= 0x8000) {
+		cart->mapper.cnrom.CHRBank = value & 0b11;
+	}
+}
+
+u8 CNROM_ReadMemPPU(Cartridge* cart, u16 address) {
+	CNROMMapper* mapperData = &cart->mapper.cnrom;
+	if (address < 0x2000) {
+		if (cart->CHRRom) return cart->CHRRom[(address + mapperData->CHRBank * 0x2000) % cart->header.chrRomSize];
+		if (cart->CHRRam) return cart->CHRRam[(address + mapperData->CHRBank * 0x2000) % cart->header.chrRamSize];
+		if (cart->CHRNVRam) return cart->CHRNVRam[(address + mapperData->CHRBank * 0x2000) % cart->header.chrNVRamSize];
+	}
+	return 0;
+}
+
+void CNROM_WriteMemPPU(Cartridge* cart, u16 address, u8 value) {
+	CNROMMapper* mapperData = &cart->mapper.cnrom;
+	if (address < 0x2000) {
+		if (cart->CHRRam) cart->CHRRam[(address + mapperData->CHRBank * 0x2000) % cart->header.chrRamSize] = value;
+		if (cart->CHRNVRam) cart->CHRNVRam[(address + mapperData->CHRBank * 0x2000) % cart->header.chrNVRamSize] = value;
+	}
+}
+
+//----------------------------------------------------------------------------------------------------------
+
+//-------------------------------------- Mapper 3: MAPPER_CNROM  -------------------------------------------
+
+void MMC3_tick([[maybe_unused]] Cartridge* cart) {
+	// WIP
+	return;
+}
+
+u8 MMC3_ReadMemCPU([[maybe_unused]] Cartridge* cart, [[maybe_unused]] u16 address) {
 	// WIP
 	return 0;
 }
-void CNROM_WriteMemCPU([[maybe_unused]] Cartridge* cart, [[maybe_unused]] u16 address, [[maybe_unused]] u8 value) {
+
+void MMC3_WriteMemCPU([[maybe_unused]] Cartridge* cart, [[maybe_unused]] u16 address, [[maybe_unused]] u8 value) {
 	// WIP
 }
 
-// TODO: implement PPU Bus functions for CNROM
+u8 MMC3_ReadMemPPU([[maybe_unused]] Cartridge* cart, [[maybe_unused]] u16 address) {
+	// WIP
+	return 0;
+}
+
+void MMC3_WriteMemPPU([[maybe_unused]] Cartridge* cart, [[maybe_unused]] u16 address) {
+	// WIP
+}
 
 //----------------------------------------------------------------------------------------------------------
 
@@ -380,6 +435,16 @@ void MapperInit(Cartridge* cart) {
 			// case MAPPER_UXROM: func = UXROM_Init; break;
 			// case MAPPER_CNROM: func = CNROM_Init; break;
 
+		default:
+	}
+	if (func) func(cart);
+}
+
+typedef void (*MapperTickCb)(Cartridge*);
+void MapperTick(Cartridge* cart) {
+	MapperTickCb func = NULL;
+	switch (cart->mapper.id) {
+		case MAPPER_MMC3: func = MMC3_tick; break;
 		default:
 	}
 	if (func) func(cart);
@@ -423,6 +488,7 @@ u8 MapperReadMemPPU(Cartridge* cart, u16 address) {
 		case MAPPER_NROM: func = NROM_ReadMemPPU; break;
 		case MAPPER_MMC1: func = MMC1_ReadMemPPU; break;
 		case MAPPER_UXROM: func = UXROM_ReadMemPPU; break;
+		case MAPPER_CNROM: func = CNROM_ReadMemPPU; break;
 
 		default:
 	}
@@ -438,6 +504,7 @@ void MapperWriteMemPPU(Cartridge* cart, u16 address, u8 value) {
 		case MAPPER_NROM: func = NROM_WriteMemPPU; break;
 		case MAPPER_MMC1: func = MMC1_WriteMemPPU; break;
 		case MAPPER_UXROM: func = UXROM_WriteMemPPU; break;
+		case MAPPER_CNROM: func = CNROM_WriteMemPPU; break;
 
 		default:
 	}
