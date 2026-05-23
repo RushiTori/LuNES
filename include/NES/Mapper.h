@@ -17,6 +17,9 @@ typedef struct Cartridge Cartridge;
 // MAPPER_CNROM
 #include "CNROM.h"
 
+// MAPPER_MMC3
+#include "MMC3.h"
+
 //-----------------------
 
 #define CARTRIDGE_BASE_ADDRESS 0x4020
@@ -50,6 +53,7 @@ typedef struct Mapper {
 		MMC1Mapper mmc1;
 		UXROMMapper uxrom;
 		CNROMMapper cnrom;
+		MMC3Mapper mmc3;
 	};
 } Mapper;
 

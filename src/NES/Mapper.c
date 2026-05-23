@@ -30,7 +30,7 @@ u8 NROM_ReadMemCPU(Cartridge* cart, u16 address) {
 		u16 prgRamSize = cart->header.prgRamSize + cart->header.prgNVRamSize;
 		// ram access
 		if (address - MAPPER_NROM_PRG_RAM_START < prgRamSize) {
-			return (cart->header.hasNV) ? cart->PRGRam[address % cart->header.prgRamSize] : cart->PRGNVRam[address];
+			return (cart->header.hasNV) ? cart->PRGRam[address % cart->header.prgRamSize] : cart->PRGNVRam[address % cart->header.prgRamSize];
 		} else {
 			// mirroring
 			return NROM_ReadMemCPU(cart, MAPPER_NROM_PRG_RAM_END + (address - MAPPER_NROM_PRG_RAM_END) % prgRamSize);
@@ -152,7 +152,7 @@ u8 MMC1_ReadMemCPU(Cartridge* cart, u16 address) {
 		u16 prgRamSize = cart->header.prgRamSize + cart->header.prgNVRamSize;
 		// ram access
 		if (address - MAPPER_NROM_PRG_RAM_START < prgRamSize) {
-			return (cart->header.hasNV) ? cart->PRGRam[address] : cart->PRGNVRam[address];
+			return (cart->header.hasNV) ? cart->PRGRam[address % 0x2000] : cart->PRGNVRam[address % 0x2000];
 		} else {
 			// mirroring
 			return MMC1_ReadMemCPU(cart, MAPPER_NROM_PRG_RAM_END + (address - MAPPER_NROM_PRG_RAM_END) % prgRamSize);
@@ -213,6 +213,7 @@ void MMC1_WriteMemCPU(Cartridge* cart, u16 address, u8 value) {
 				mapperData->shiftCnt = 0;
 				mapperData->shiftRegister = 0;
 				if (address >= MAPPER_MMC1_WRITETO_CONTROL_START && address <= MAPPER_MMC1_WRITETO_CONTROL_END) {
+					// TODO: implement nametable arrangement control capabilities
 					mapperData->controlReg = valToWrite;
 				} else if (address >= MAPPER_MMC1_WRITETO_CHRBANK0_START && address <= MAPPER_MMC1_WRITETO_CHRBANK0_END) {
 					mapperData->chrBank0Reg = valToWrite;
@@ -360,7 +361,11 @@ void UXROM_WriteMemPPU(Cartridge* cart, u16 address, u8 value) {
 //-------------------------------------- Mapper 3: MAPPER_CNROM  -------------------------------------------
 u8 CNROM_ReadMemCPU(Cartridge* cart, u16 address) {
 	if (address >= 0x6000 && address <= 0x7FFF) {
-		return cart->PRGRam[address % cart->header.prgRamSize];	 // read PRG-RAM properly, emulate mirroring
+		if (cart->PRGRam) {
+			return cart->PRGRam[address % cart->header.prgRamSize];	 // read PRG-RAM properly, emulate mirroring
+		} else if (cart->PRGNVRam) {
+			return cart->PRGNVRam[address % cart->header.prgRamSize];
+		}
 	}
 
 	if (address >= 0x8000) {
@@ -400,27 +405,239 @@ void CNROM_WriteMemPPU(Cartridge* cart, u16 address, u8 value) {
 
 //-------------------------------------- Mapper 3: MAPPER_CNROM  -------------------------------------------
 
-void MMC3_tick([[maybe_unused]] Cartridge* cart) {
-	// WIP
+#define MMC3_PRGRAM_START 0x6000
+#define MMC3_PRGRAM_END 0x7FFF
+
+#define MMC3_PRGBANK_SIZE 0x2000
+
+#define MMC3_PRGBANK0_START 0x8000
+#define MMC3_PRGBANK0_END 0x9FFF
+
+#define MMC3_PRGBANK1_START 0xA000
+#define MMC3_PRGBANK1_END 0xBFFF
+
+#define MMC3_PRGBANK2_START 0xC000
+#define MMC3_PRGBANK2_END 0xDFFF
+
+#define MMC3_PRGBANK3_START 0xE000
+
+#define MMC3_BANKS_START 0x8000
+#define MMC3_BANKS_END 0x9FFF
+
+#define MMC3_NMT_PRGRAM_START 0xA000
+#define MMC3_NMT_PRGRAM_END 0xBFFF
+
+#define MMC3_IRQ_RELOAD_START 0xC000
+#define MMC3_IRQ_RELOAD_END 0xDFFF
+
+#define MMC3_IRQ_TOGGLE_START 0xE000
+
+#define MMC3_BANKSELECT_MASK 0b111
+
+#define MMC3_PRGBANK_MASK 0b00111111
+
+void MMC3_Init(Cartridge* cart) {
+	MMC3Mapper* mapperData = &cart->mapper.mmc3;
+	mapperData->irqEnable = false;
+}
+
+void MMC3_tick(Cartridge* cart) {
+	// might not have a working implem yet tbh
+	MMC3Mapper* mapperData = &cart->mapper.mmc3;
+
+	if (mapperData->irqEnable && mapperData->irqCounter == 0) {
+		mapperData->irqCounter = mapperData->irqReloadValue;
+	} else {
+		mapperData->irqCounter--;
+	}
+
+	if (mapperData->irqCounter == 0) {
+		// call IRQ interrupt
+	}
 	return;
 }
 
-u8 MMC3_ReadMemCPU([[maybe_unused]] Cartridge* cart, [[maybe_unused]] u16 address) {
-	// WIP
+u8 MMC3_ReadMemCPU(Cartridge* cart, u16 address) {
+	MMC3Mapper* mapperData = &cart->mapper.mmc3;
+	if (address >= MMC3_PRGRAM_START && address <= MMC3_PRGRAM_END && mapperData->PRGRamEnable) {
+		return (cart->header.hasNV) ? cart->PRGRam[address % cart->header.prgRamSize] : cart->PRGNVRam[address % cart->header.prgRamSize];
+	}
+
+	if (!mapperData->swapPRGRom) {
+		if (address >= MMC3_PRGBANK0_START && address <= MMC3_PRGBANK0_END) {
+			return cart->PRGRom[address % MMC3_PRGBANK_SIZE + mapperData->r[6] & MMC3_PRGBANK_MASK];
+		}
+
+		else if (address >= MMC3_PRGBANK1_START && address <= MMC3_PRGBANK1_END) {
+			return cart->PRGRom[address % MMC3_PRGBANK_SIZE + mapperData->r[7] & MMC3_PRGBANK_MASK];
+		}
+
+		else if (address >= MMC3_PRGBANK2_START && address <= MMC3_PRGBANK2_END) {
+			return cart
+				->PRGRom[address % MMC3_PRGBANK_SIZE + cart->header.prgRomSize - 2 * MMC3_PRGBANK_SIZE];  // bankCount - 2 aka second to last
+		}
+
+		else {
+			return cart->PRGRom[address % MMC3_PRGBANK_SIZE + cart->header.prgRomSize - 1 * MMC3_PRGBANK_SIZE];	 // bankCount - 1 aka last
+		}
+
+	} else {
+		if (address >= MMC3_PRGBANK0_START && address <= MMC3_PRGBANK0_END) {
+			return cart
+				->PRGRom[address % MMC3_PRGBANK_SIZE + cart->header.prgRomSize - 2 * MMC3_PRGBANK_SIZE];  // bankCount - 2 aka second to last
+		}
+
+		else if (address >= MMC3_PRGBANK1_START && address <= MMC3_PRGBANK1_END) {
+			return cart->PRGRom[address % MMC3_PRGBANK_SIZE + mapperData->r[7] & MMC3_PRGBANK_MASK];
+		}
+
+		else if (address >= MMC3_PRGBANK2_START && address <= MMC3_PRGBANK2_END) {
+			return cart->PRGRom[address % MMC3_PRGBANK_SIZE + mapperData->r[6] & MMC3_PRGBANK_MASK];
+		}
+
+		else {
+			return cart->PRGRom[address % MMC3_PRGBANK_SIZE + cart->header.prgRomSize - 1 * MMC3_PRGBANK_SIZE];	 // bankCount - 1 aka last
+		}
+	}
+
 	return 0;
 }
 
-void MMC3_WriteMemCPU([[maybe_unused]] Cartridge* cart, [[maybe_unused]] u16 address, [[maybe_unused]] u8 value) {
-	// WIP
+void MMC3_WriteMemCPU(Cartridge* cart, u16 address, u8 value) {
+	MMC3Mapper* mapperData = &cart->mapper.mmc3;
+	if (address >= MMC3_PRGRAM_START && address <= MMC3_PRGRAM_END && mapperData->PRGRamEnable && !mapperData->PRGRamProtect) {
+		u8* target =
+			(cart->header.hasNV) ? &cart->PRGRam[address % cart->header.prgRamSize] : &cart->PRGNVRam[address % cart->header.prgRamSize];
+		*target = value;
+	}
+
+	if (address >= MMC3_BANKS_START && address <= MMC3_BANKS_END) {
+		if (address % 2 == 0) {
+			mapperData->bankSelect = value & MMC3_BANKSELECT_MASK;
+			mapperData->swapPRGRom = GetFlag(value, 6);
+			mapperData->swapCHR = GetFlag(value, 7);
+		} else {
+			mapperData->r[mapperData->bankSelect] = value;
+		}
+	}
+
+	if (address >= MMC3_NMT_PRGRAM_START && address <= MMC3_NMT_PRGRAM_END) {
+		if (address % 2 == 0) {
+			// nametable arrangement
+			// TODO: change nametable arrangement based on value
+		} else {
+			// PRG-RAM protect
+			mapperData->PRGRamEnable = GetFlag(value, 7);
+			mapperData->PRGRamProtect = GetFlag(value, 6);
+		}
+	}
+
+	if (address >= MMC3_IRQ_RELOAD_START && address <= MMC3_IRQ_RELOAD_END) {
+		if (address % 2 == 0) {
+			mapperData->irqCounter = value;
+		} else {
+			// TODO: check if it's accurate
+			mapperData->irqCounter = 0;
+		}
+	}
+
+	if (address >= MMC3_IRQ_TOGGLE_START) {
+		if (address % 2 == 0) {
+			mapperData->irqEnable = false;
+		} else {
+			mapperData->irqEnable = true;
+		}
+	}
 }
 
 u8 MMC3_ReadMemPPU([[maybe_unused]] Cartridge* cart, [[maybe_unused]] u16 address) {
-	// WIP
+	MMC3Mapper* mapperData = &cart->mapper.mmc3;
+	u8* CHRArray;
+
+	if (cart->CHRRom) {
+		CHRArray = cart->CHRRom;
+	} else if (cart->CHRRam) {
+		CHRArray = cart->CHRRam;
+	} else {
+		CHRArray = cart->CHRNVRam;
+	}
+
+	if (!mapperData->swapCHR) {
+		// TODO: add defines for those ranges and sizes
+		if (address <= 0x07FF) {
+			return CHRArray[address % 0x0800 + (mapperData->r[0] & 0b11111110) * 0x800];
+		} else if (address <= 0x0FFF) {
+			return CHRArray[address % 0x0800 + (mapperData->r[1] & 0b11111110) * 0x800];
+		} else if (address <= 0x13FF) {
+			return CHRArray[address % 0x0400 + mapperData->r[2] * 0x400];
+		} else if (address <= 0x17FF) {
+			return CHRArray[address % 0x0400 + mapperData->r[3] * 0x400];
+		} else if (address <= 0x1BFF) {
+			return CHRArray[address % 0x0400 + mapperData->r[4] * 0x400];
+		} else if (address <= 0x1FFF) {
+			return CHRArray[address % 0x0400 + mapperData->r[5] * 0x400];
+		}
+	} else {
+		if (address <= 0x03FF) {
+			return CHRArray[address % 0x0400 + mapperData->r[2] * 0x400];
+		} else if (address <= 0x07FF) {
+			return CHRArray[address % 0x0400 + mapperData->r[3] * 0x400];
+		} else if (address <= 0x0BFF) {
+			return CHRArray[address % 0x0400 + mapperData->r[4] * 0x400];
+		} else if (address <= 0x0FFF) {
+			return CHRArray[address % 0x0400 + mapperData->r[5] * 0x400];
+		} else if (address <= 0x17FF) {
+			return CHRArray[address % 0x0800 + (mapperData->r[0] & 0b11111110) * 0x800];
+		} else if (address <= 0x1FFF) {
+			return CHRArray[address % 0x0800 + (mapperData->r[1] & 0b11111110) * 0x800];
+		}
+	}
+
 	return 0;
 }
 
-void MMC3_WriteMemPPU([[maybe_unused]] Cartridge* cart, [[maybe_unused]] u16 address) {
-	// WIP
+void MMC3_WriteMemPPU(Cartridge* cart, u16 address, u8 value) {
+	MMC3Mapper* mapperData = &cart->mapper.mmc3;
+	u8* CHRArray;
+
+	if (cart->CHRRam) {
+		CHRArray = cart->CHRRam;
+	} else if (cart->CHRNVRam) {
+		CHRArray = cart->CHRNVRam;
+	} else {
+		return;
+	}
+
+	if (!mapperData->swapCHR) {
+		// TODO: add defines for those ranges and sizes
+		if (address <= 0x07FF) {
+			CHRArray[address % 0x0800 + (mapperData->r[0] & 0b11111110) * 0x800] = value;
+		} else if (address <= 0x0FFF) {
+			CHRArray[address % 0x0800 + (mapperData->r[1] & 0b11111110) * 0x800] = value;
+		} else if (address <= 0x13FF) {
+			CHRArray[address % 0x0400 + mapperData->r[2] * 0x400] = value;
+		} else if (address <= 0x17FF) {
+			CHRArray[address % 0x0400 + mapperData->r[3] * 0x400] = value;
+		} else if (address <= 0x1BFF) {
+			CHRArray[address % 0x0400 + mapperData->r[4] * 0x400] = value;
+		} else if (address <= 0x1FFF) {
+			CHRArray[address % 0x0400 + mapperData->r[5] * 0x400] = value;
+		}
+	} else {
+		if (address <= 0x03FF) {
+			CHRArray[address % 0x0400 + mapperData->r[2] * 0x400] = value;
+		} else if (address <= 0x07FF) {
+			CHRArray[address % 0x0400 + mapperData->r[3] * 0x400] = value;
+		} else if (address <= 0x0BFF) {
+			CHRArray[address % 0x0400 + mapperData->r[4] * 0x400] = value;
+		} else if (address <= 0x0FFF) {
+			CHRArray[address % 0x0400 + mapperData->r[5] * 0x400] = value;
+		} else if (address <= 0x17FF) {
+			CHRArray[address % 0x0800 + (mapperData->r[0] & 0b11111110) * 0x800] = value;
+		} else if (address <= 0x1FFF) {
+			CHRArray[address % 0x0800 + (mapperData->r[1] & 0b11111110) * 0x800] = value;
+		}
+	}
 }
 
 //----------------------------------------------------------------------------------------------------------
@@ -459,6 +676,7 @@ u8 MapperReadMemCPU(Cartridge* cart, u16 address) {
 		case MAPPER_MMC1: func = MMC1_ReadMemCPU; break;
 		case MAPPER_UXROM: func = UXROM_ReadMemCPU; break;
 		case MAPPER_CNROM: func = CNROM_ReadMemCPU; break;
+		case MAPPER_MMC3: func = MMC3_ReadMemCPU; break;
 
 		default:
 	}
@@ -474,6 +692,7 @@ void MapperWriteMemCPU(Cartridge* cart, u16 address, u8 value) {
 		case MAPPER_MMC1: func = MMC1_WriteMemCPU; break;
 		case MAPPER_UXROM: func = UXROM_WriteMemCPU; break;
 		case MAPPER_CNROM: func = CNROM_WriteMemCPU; break;
+		case MAPPER_MMC3: func = MMC3_WriteMemCPU; break;
 
 		default:
 	}
@@ -489,6 +708,7 @@ u8 MapperReadMemPPU(Cartridge* cart, u16 address) {
 		case MAPPER_MMC1: func = MMC1_ReadMemPPU; break;
 		case MAPPER_UXROM: func = UXROM_ReadMemPPU; break;
 		case MAPPER_CNROM: func = CNROM_ReadMemPPU; break;
+		case MAPPER_MMC3: func = MMC3_ReadMemPPU; break;
 
 		default:
 	}
@@ -505,6 +725,7 @@ void MapperWriteMemPPU(Cartridge* cart, u16 address, u8 value) {
 		case MAPPER_MMC1: func = MMC1_WriteMemPPU; break;
 		case MAPPER_UXROM: func = UXROM_WriteMemPPU; break;
 		case MAPPER_CNROM: func = CNROM_WriteMemPPU; break;
+		case MAPPER_MMC3: func = MMC3_WriteMemPPU; break;
 
 		default:
 	}
